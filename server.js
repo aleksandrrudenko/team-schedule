@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -275,7 +276,14 @@ app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
     console.log('✅ Accessing /schedule.html');
     console.log('   User:', req.user ? req.user.email : 'No user');
     console.log('   Is authenticated:', req.isAuthenticated());
-    res.sendFile(__dirname + '/schedule.html');
+    const filePath = path.join(__dirname, 'schedule.html');
+    console.log('   File path:', filePath);
+    res.sendFile(filePath, (err) => {
+        if (err) {
+            console.error('❌ Error sending schedule.html:', err);
+            res.status(500).send('Error loading schedule page');
+        }
+    });
 });
 
 // Protect all other static files (HTML, JS, MD)
