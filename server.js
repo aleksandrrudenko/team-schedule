@@ -54,7 +54,7 @@ console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
 if (ALLOWED_USERS.length > 0) {
     console.log('   Whitelist emails:');
-    ALLOWED_USERS.forEach((email, index) {
+    ALLOWED_USERS.forEach((email, index) => {
         console.log(`      [${index + 1}] "${email}"`);
     });
 } else {
