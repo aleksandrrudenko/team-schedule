@@ -30,6 +30,11 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     console.error('   Required: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET');
     console.error('   Please set these in Railway dashboard: Variables tab');
     console.error('   See README_AUTH.md for setup instructions');
+    console.error('');
+    console.error('🔍 Debug info:');
+    console.error('   GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
+    console.error('   GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+    console.error('   All env vars:', Object.keys(process.env).filter(k => k.includes('GOOGLE') || k.includes('SESSION') || k.includes('ALLOWED') || k.includes('CALLBACK')));
     process.exit(1);
 }
 
