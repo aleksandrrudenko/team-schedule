@@ -8,15 +8,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Whitelist of allowed users (Google email addresses)
+// Support multiple formats: comma-separated, space-separated, or newline-separated
 const ALLOWED_USERS = process.env.ALLOWED_USERS 
-    ? process.env.ALLOWED_USERS.split(',').map(email => email.trim().toLowerCase())
+    ? process.env.ALLOWED_USERS
+        .split(/[,\n\r]+/)  // Split by comma, newline, or carriage return
+        .map(email => email.trim().toLowerCase())
+        .filter(email => email.length > 0)  // Remove empty strings
     : [];
 
 // Debug logging
 console.log('🔐 Whitelist configuration:');
-console.log('   ALLOWED_USERS env:', process.env.ALLOWED_USERS);
+console.log('   ALLOWED_USERS env (raw):', JSON.stringify(process.env.ALLOWED_USERS));
 console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
+console.log('   Whitelist emails:', ALLOWED_USERS.map(e => `"${e}"`).join(', '));
 
 // Session configuration
 app.use(session({
