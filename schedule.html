@@ -1233,9 +1233,11 @@
                         saveButton.textContent = originalText;
                     }, 2000);
                     
-                    // Update last saved info
-                    showLastSavedInfo();
-                    updateLastSavedInfo(scheduleData.savedBy, scheduleData.savedAt);
+                    // Update last saved info from server response
+                    if (result.savedBy || result.savedAt) {
+                        showLastSavedInfo();
+                        updateLastSavedInfo(result.savedBy || result.savedByName, result.savedAt);
+                    }
                 } else {
                     const error = await response.json();
                     alert('❌ Error saving schedule: ' + (error.error || 'Unknown error'));
