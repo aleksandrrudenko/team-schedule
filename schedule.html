@@ -1041,6 +1041,24 @@
             displayStats(stats);
 
             // Create table
+            createScheduleTable();
+        }
+        
+        // Create schedule table (extracted to be reusable)
+        function createScheduleTable() {
+            // Use global data if available, otherwise use parameters
+            const onCallSchedule = globalOnCallSchedule;
+            const shiftSchedule = globalShiftSchedule;
+            const days = globalDays;
+            
+            if (!onCallSchedule || !shiftSchedule || !days) {
+                console.error('Cannot create table: missing schedule data');
+                return;
+            }
+            
+            const month = parseInt(document.getElementById('monthSelect').value);
+            const year = parseInt(document.getElementById('yearSelect').value);
+            
             const scheduleDiv = document.getElementById('schedule');
             scheduleDiv.innerHTML = '';
 
@@ -1327,7 +1345,9 @@
                         // Refresh display
                         const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
                         displayStats(stats);
-                        refreshSchedule();
+                        
+                        // Create/refresh table with loaded data
+                        createScheduleTable();
                         
                         console.log('✅ Loaded saved schedule');
                         return true; // Indicate that saved schedule was loaded
@@ -1646,23 +1666,32 @@
             const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
             displayStats(stats);
 
-            // Update all cells
-            document.querySelectorAll('.editable-cell').forEach(cell => {
-                const employeeName = cell.dataset.employee;
-                const day = parseInt(cell.dataset.day);
-                const employee = allEmployees.find(e => e.name === employeeName);
-                const dayInfo = globalDays.find(d => d.day === day);
+            // Check if table exists, if not create it
+            const scheduleDiv = document.getElementById('schedule');
+            const existingTable = scheduleDiv.querySelector('.schedule-table');
+            
+            if (!existingTable) {
+                // Table doesn't exist, create it
+                createScheduleTable();
+            } else {
+                // Table exists, update cells
+                document.querySelectorAll('.editable-cell').forEach(cell => {
+                    const employeeName = cell.dataset.employee;
+                    const day = parseInt(cell.dataset.day);
+                    const employee = allEmployees.find(e => e.name === employeeName);
+                    const dayInfo = globalDays.find(d => d.day === day);
 
-                if (employee && dayInfo) {
-                    const status = getCellStatus(employee, dayInfo, globalOnCallSchedule, globalShiftSchedule);
-                    cell.className = `cell ${status.class} editable-cell`;
-                    let content = `<div class="cell-content">${status.text}</div>`;
-                    if (status.timeText) {
-                        content += `<div class="shift-time">${status.timeText}</div>`;
+                    if (employee && dayInfo) {
+                        const status = getCellStatus(employee, dayInfo, globalOnCallSchedule, globalShiftSchedule);
+                        cell.className = `cell ${status.class} editable-cell`;
+                        let content = `<div class="cell-content">${status.text}</div>`;
+                        if (status.timeText) {
+                            content += `<div class="shift-time">${status.timeText}</div>`;
+                        }
+                        cell.innerHTML = content;
                     }
-                    cell.innerHTML = content;
-                }
-            });
+                });
+            }
         }
 
         // Load user info if authenticated
