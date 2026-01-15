@@ -206,7 +206,17 @@ app.get('/auth/google/callback',
         console.log('   User:', req.user ? req.user.email : 'No user');
         console.log('   Session ID:', req.sessionID);
         console.log('   Is authenticated:', req.isAuthenticated());
-        res.redirect('/schedule.html');
+        console.log('   Session data:', JSON.stringify(req.session));
+        
+        // Save session before redirect
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Session save error:', err);
+            } else {
+                console.log('✅ Session saved successfully');
+            }
+            res.redirect('/schedule.html');
+        });
     }
 );
 
