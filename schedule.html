@@ -1202,7 +1202,7 @@
                 return;
             }
 
-            const saveButton = event.target;
+            const saveButton = document.querySelector('button[onclick="saveSchedule()"]');
             const originalText = saveButton.textContent;
             saveButton.disabled = true;
             saveButton.textContent = 'Saving...';
