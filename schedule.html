@@ -291,12 +291,109 @@
             margin-top: 2px;
         }
 
+        .editable-cell {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .editable-cell:hover {
+            opacity: 0.8;
+            box-shadow: 0 0 0 2px #3498db;
+        }
+
+        .cell-editor-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .cell-editor-modal.show {
+            display: flex;
+        }
+
+        .cell-editor-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .cell-editor-content h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .cell-option {
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f8f9fa;
+        }
+
+        .cell-option:hover {
+            background: #e9ecef;
+            border-color: #3498db;
+            transform: translateX(5px);
+        }
+
+        .cell-option.selected {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .cell-option-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .cell-option-desc {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .cell-editor-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .cell-editor-actions button {
+            padding: 10px 20px;
+        }
+
+        .cell-editor-actions button.cancel {
+            background: #95a5a6;
+        }
+
+        .cell-editor-actions button.cancel:hover {
+            background: #7f8c8d;
+        }
+
         @media print {
             body {
                 background: white;
             }
             .controls, .legend {
                 display: none;
+            }
+            .editable-cell {
+                cursor: default;
             }
         }
     </style>
@@ -900,6 +997,11 @@
             }
         }
 
+        // Global variables to store schedule data for editing
+        let globalOnCallSchedule = null;
+        let globalShiftSchedule = null;
+        let globalDays = null;
+
         // Schedule generation
         function generateSchedule() {
             const month = parseInt(document.getElementById('monthSelect').value);
@@ -907,6 +1009,11 @@
             const days = getDaysInMonth(month, year);
             const onCallSchedule = distributeOnCall(days);
             const shiftSchedule = distributeShifts(days, onCallSchedule);
+
+            // Store globally for editing
+            globalOnCallSchedule = onCallSchedule;
+            globalShiftSchedule = shiftSchedule;
+            globalDays = days;
 
             // Statistics
             const stats = calculateStats(onCallSchedule, days, shiftSchedule);
@@ -955,12 +1062,17 @@
                 days.forEach(dayInfo => {
                     const cell = document.createElement('td');
                     const status = getCellStatus(employee, dayInfo, onCallSchedule, shiftSchedule);
-                    cell.className = `cell ${status.class}`;
+                    cell.className = `cell ${status.class} editable-cell`;
+                    cell.dataset.employee = employee.name;
+                    cell.dataset.day = dayInfo.day;
                     let content = `<div class="cell-content">${status.text}</div>`;
                     if (status.timeText) {
                         content += `<div class="shift-time">${status.timeText}</div>`;
                     }
                     cell.innerHTML = content;
+                    cell.style.cursor = 'pointer';
+                    cell.title = 'Click to edit';
+                    cell.addEventListener('click', () => showCellEditor(employee, dayInfo, cell));
                     row.appendChild(cell);
                 });
 
@@ -1077,9 +1189,10 @@
         function exportToCSV() {
             const month = parseInt(document.getElementById('monthSelect').value);
             const year = parseInt(document.getElementById('yearSelect').value);
-            const days = getDaysInMonth(month, year);
-            const onCallSchedule = distributeOnCall(days);
-            const shiftSchedule = distributeShifts(days, onCallSchedule);
+            const days = globalDays || getDaysInMonth(month, year);
+            // Use global schedules if available (after editing), otherwise generate new
+            const onCallSchedule = globalOnCallSchedule || distributeOnCall(days);
+            const shiftSchedule = globalShiftSchedule || distributeShifts(days, onCallSchedule);
 
             let csv = 'Employee,Timezone,Day,Date,Day of week,Type,Shift,CET time,Local time,On-call,Shift hours,On-call hours\n';
 
@@ -1136,6 +1249,256 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        // Get on-call shift for employee group on a specific day
+        function getOnCallShiftForEmployee(employee, dayInfo) {
+            // Determine which group the employee belongs to
+            let groupName = null;
+            if (team.brazil.some(e => e.name === employee.name)) {
+                groupName = 'Brazil';
+            } else if (team.australia.some(e => e.name === employee.name)) {
+                groupName = 'Australia';
+            } else if (team.europe.some(e => e.name === employee.name)) {
+                groupName = 'Europe';
+            }
+
+            if (!groupName) return null;
+
+            const onCallShiftsByGroup = {
+                'Australia': { startCET: 0, endCET: 9 },
+                'Europe': { startCET: 8, endCET: 18 },
+                'Brazil': { startCET: 17, endCET: 1 }
+            };
+
+            const shiftTimes = onCallShiftsByGroup[groupName];
+            const cetStart = shiftTimes.startCET;
+            const cetEnd = shiftTimes.endCET;
+            const cetOffset = 1;
+            const groupOffset = employee.offset;
+
+            const localStart = (cetStart - cetOffset + groupOffset + 24) % 24;
+            let localEnd;
+            if (cetEnd < cetStart) {
+                localEnd = (cetEnd - cetOffset + groupOffset + 24) % 24;
+            } else {
+                localEnd = (cetEnd - cetOffset + groupOffset + 24) % 24;
+            }
+
+            let cetLabel;
+            if (cetEnd < cetStart) {
+                cetLabel = `${formatTime(cetStart)}-${formatTime(cetEnd)}+1`;
+            } else {
+                cetLabel = `${formatTime(cetStart)}-${formatTime(cetEnd)}`;
+            }
+
+            return {
+                id: 'oncall',
+                name: 'On-call',
+                startCET: cetStart,
+                endCET: cetEnd,
+                crossesMidnight: cetEnd < cetStart,
+                startLocal: localStart,
+                endLocal: localEnd,
+                label: cetLabel,
+                labelLocal: `${formatTime(localStart)}-${formatTime(localEnd)}`
+            };
+        }
+
+        // Show cell editor modal
+        function showCellEditor(employee, dayInfo, cellElement) {
+            // Create modal if it doesn't exist
+            let modal = document.getElementById('cellEditorModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'cellEditorModal';
+                modal.className = 'cell-editor-modal';
+                document.body.appendChild(modal);
+            }
+
+            const currentStatus = getCellStatus(employee, dayInfo, globalOnCallSchedule, globalShiftSchedule);
+            const isOnCall = globalOnCallSchedule[employee.name].days.includes(dayInfo.day);
+            const hasShift = !!globalShiftSchedule[employee.name][dayInfo.day];
+
+            // Determine current selection
+            let currentSelection = 'day-off';
+            if (isOnCall && hasShift) {
+                currentSelection = 'on-call-regular';
+            } else if (isOnCall) {
+                currentSelection = 'on-call';
+            } else if (hasShift) {
+                const shift = globalShiftSchedule[employee.name][dayInfo.day];
+                currentSelection = `shift-${shift.id}`;
+            }
+
+            // Build options
+            const options = [
+                {
+                    id: 'on-call',
+                    title: 'On-call (with 1h overlap)',
+                    desc: '24/7 availability during assigned shift hours'
+                },
+                {
+                    id: 'on-call-regular',
+                    title: 'On-call + Regular work (parallel)',
+                    desc: 'Both on-call and regular work on the same day'
+                },
+                {
+                    id: 'shift-1',
+                    title: 'Regular work - Shift 1 (00:00-08:00 CET)',
+                    desc: 'Night shift'
+                },
+                {
+                    id: 'shift-2',
+                    title: 'Regular work - Shift 2 (08:00-16:00 CET)',
+                    desc: 'Day shift'
+                },
+                {
+                    id: 'shift-3',
+                    title: 'Regular work - Shift 3 (16:00-00:00 CET)',
+                    desc: 'Evening shift'
+                },
+                {
+                    id: 'day-off',
+                    title: 'Day off',
+                    desc: 'No work assigned'
+                }
+            ];
+
+            modal.innerHTML = `
+                <div class="cell-editor-content">
+                    <h3>Edit Schedule: ${employee.name} - Day ${dayInfo.day}</h3>
+                    ${options.map(opt => `
+                        <div class="cell-option ${opt.id === currentSelection ? 'selected' : ''}" 
+                             data-option="${opt.id}">
+                            <div class="cell-option-title">${opt.title}</div>
+                            <div class="cell-option-desc">${opt.desc}</div>
+                        </div>
+                    `).join('')}
+                    <div class="cell-editor-actions">
+                        <button class="cancel" onclick="closeCellEditor()">Cancel</button>
+                        <button onclick="applyCellEdit('${employee.name}', ${dayInfo.day}, '${dayInfo.dayOfWeek}', ${dayInfo.isWeekend})">Apply</button>
+                    </div>
+                </div>
+            `;
+
+            // Add click handlers
+            modal.querySelectorAll('.cell-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    modal.querySelectorAll('.cell-option').forEach(o => o.classList.remove('selected'));
+                    this.classList.add('selected');
+                    modal.dataset.selectedOption = this.dataset.option;
+                });
+            });
+
+            // Store initial selection
+            modal.dataset.selectedOption = currentSelection;
+            modal.dataset.employee = employee.name;
+            modal.dataset.day = dayInfo.day;
+
+            modal.classList.add('show');
+
+            // Close on background click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeCellEditor();
+                }
+            });
+        }
+
+        // Close cell editor
+        function closeCellEditor() {
+            const modal = document.getElementById('cellEditorModal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        // Apply cell edit
+        function applyCellEdit(employeeName, day, dayOfWeek, isWeekend) {
+            const modal = document.getElementById('cellEditorModal');
+            if (!modal) return;
+
+            const selectedOption = modal.dataset.selectedOption || modal.querySelector('.cell-option.selected')?.dataset.option;
+            if (!selectedOption) return;
+
+            const employee = allEmployees.find(e => e.name === employeeName);
+            if (!employee) return;
+
+            const dayInfo = globalDays.find(d => d.day === day);
+            if (!dayInfo) return;
+
+            // Update onCallSchedule
+            const onCallIndex = globalOnCallSchedule[employeeName].days.indexOf(day);
+            if (selectedOption === 'on-call' || selectedOption === 'on-call-regular') {
+                // Add on-call if not present
+                if (onCallIndex === -1) {
+                    const onCallShift = getOnCallShiftForEmployee(employee, dayInfo);
+                    if (onCallShift) {
+                        globalOnCallSchedule[employeeName].days.push(day);
+                        globalOnCallSchedule[employeeName].shifts.push({
+                            day: day,
+                            shift: onCallShift
+                        });
+                        globalOnCallSchedule[employeeName].count++;
+                    }
+                }
+            } else {
+                // Remove on-call
+                if (onCallIndex !== -1) {
+                    globalOnCallSchedule[employeeName].days.splice(onCallIndex, 1);
+                    globalOnCallSchedule[employeeName].shifts = globalOnCallSchedule[employeeName].shifts.filter(s => s.day !== day);
+                    globalOnCallSchedule[employeeName].count--;
+                }
+            }
+
+            // Update shiftSchedule
+            if (selectedOption.startsWith('shift-')) {
+                const shiftId = parseInt(selectedOption.split('-')[1]);
+                const shift = shifts.find(s => s.id === shiftId);
+                if (shift) {
+                    globalShiftSchedule[employeeName][day] = shift;
+                }
+            } else if (selectedOption === 'on-call' || selectedOption === 'day-off') {
+                // Remove regular work shift
+                globalShiftSchedule[employeeName][day] = null;
+            }
+            // For 'on-call-regular', keep existing shift or assign default shift 2
+            else if (selectedOption === 'on-call-regular') {
+                if (!globalShiftSchedule[employeeName][day]) {
+                    globalShiftSchedule[employeeName][day] = shifts[1]; // Default to Shift 2
+                }
+            }
+
+            closeCellEditor();
+            refreshSchedule();
+        }
+
+        // Refresh schedule display after editing
+        function refreshSchedule() {
+            if (!globalOnCallSchedule || !globalShiftSchedule || !globalDays) return;
+
+            // Recalculate statistics
+            const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
+            displayStats(stats);
+
+            // Update all cells
+            document.querySelectorAll('.editable-cell').forEach(cell => {
+                const employeeName = cell.dataset.employee;
+                const day = parseInt(cell.dataset.day);
+                const employee = allEmployees.find(e => e.name === employeeName);
+                const dayInfo = globalDays.find(d => d.day === day);
+
+                if (employee && dayInfo) {
+                    const status = getCellStatus(employee, dayInfo, globalOnCallSchedule, globalShiftSchedule);
+                    cell.className = `cell ${status.class} editable-cell`;
+                    let content = `<div class="cell-content">${status.text}</div>`;
+                    if (status.timeText) {
+                        content += `<div class="shift-time">${status.timeText}</div>`;
+                    }
+                    cell.innerHTML = content;
+                }
+            });
         }
 
         // Run on load
