@@ -15,6 +15,7 @@ Visualization and management of work schedule for a distributed team with on-cal
 - [Team Composition](#team-composition)
 - [Features](#features)
 - [Quick Start](#quick-start)
+- [Authentication](#authentication)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Schedule Rules](#schedule-rules)
@@ -64,8 +65,9 @@ The system manages schedules for **11 employees** across three regions:
 
 ### Prerequisites
 
-- Node.js (v14 or higher) - for CSV generation via command line
-- Modern web browser - for interactive visualization
+- Node.js (v14 or higher)
+- Google Cloud Project with OAuth 2.0 credentials (for web authentication)
+- Modern web browser
 
 ### Installation
 
@@ -75,18 +77,39 @@ The system manages schedules for **11 employees** across three regions:
    cd team-schedule
    ```
 
-2. No additional dependencies required - the system uses vanilla JavaScript
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure authentication (see [Authentication Setup Guide](README_AUTH.md)):
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Google OAuth credentials and allowed users
+   ```
 
 ### First Run
 
-**Option 1: Web Interface (Recommended)**
+**Option 1: Web Server with Authentication (Recommended)**
 ```bash
-# Open schedule.html in your browser
+# Start the server
+npm start
+
+# Or for development with auto-reload
+npm run dev
+
+# Open http://localhost:3000 in your browser
+# You'll be prompted to sign in with Google
+```
+
+**Option 2: Standalone HTML (No Authentication)**
+```bash
+# Open schedule.html directly in your browser
 open schedule.html  # macOS
 # or double-click schedule.html
 ```
 
-**Option 2: Command Line**
+**Option 3: Command Line CSV Generation**
 ```bash
 # Generate schedule for current month
 node generate_schedule.js
@@ -126,6 +149,43 @@ The generated CSV file will be named: `schedule_<Month>_<Year>.csv`
 2. Open your calendar application (Google Calendar, Outlook, etc.)
 3. Import the CSV file
 4. Map columns as needed (most applications auto-detect)
+
+## Authentication
+
+The web application uses Google OAuth 2.0 for authentication with a whitelist-based access control system.
+
+### Features
+
+- **Google OAuth**: Secure authentication via Google accounts
+- **Whitelist Control**: Only pre-approved email addresses can access the system
+- **Session Management**: Users stay logged in for 24 hours
+- **Automatic Access Control**: Unauthorized users are automatically denied access
+
+### Setup
+
+See [README_AUTH.md](README_AUTH.md) for detailed authentication setup instructions.
+
+### Quick Setup
+
+1. Create Google OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/)
+2. Copy `.env.example` to `.env`
+3. Configure your credentials and whitelist:
+   ```env
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   ALLOWED_USERS=user1@example.com,user2@example.com
+   ```
+4. Start the server: `npm start`
+
+### Managing Access
+
+To add or remove users, edit the `ALLOWED_USERS` variable in `.env`:
+
+```env
+ALLOWED_USERS=user1@example.com,user2@example.com,newuser@example.com
+```
+
+Then restart the server.
 
 ## Configuration
 

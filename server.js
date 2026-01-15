@@ -1,0 +1,236 @@
+const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Whitelist of allowed users (Google email addresses)
+const ALLOWED_USERS = process.env.ALLOWED_USERS 
+    ? process.env.ALLOWED_USERS.split(',').map(email => email.trim())
+    : [];
+
+// Session configuration
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport configuration
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.CALLBACK_URL || `http://localhost:${PORT}/auth/google/callback`
+}, (accessToken, refreshToken, profile, done) => {
+    // Check if user is in whitelist
+    const userEmail = profile.emails[0].value;
+    
+    if (ALLOWED_USERS.length === 0) {
+        console.warn('⚠️  WARNING: No users in whitelist. All users will be denied access.');
+        return done(null, false, { message: 'Access denied. No users configured.' });
+    }
+
+    if (!ALLOWED_USERS.includes(userEmail)) {
+        console.log(`❌ Access denied for: ${userEmail}`);
+        return done(null, false, { message: 'Access denied. Your email is not in the whitelist.' });
+    }
+
+    console.log(`✅ Access granted for: ${userEmail}`);
+    return done(null, {
+        id: profile.id,
+        email: userEmail,
+        name: profile.displayName,
+        photo: profile.photos[0]?.value
+    });
+}));
+
+// Serialize user for session
+passport.serializeUser((user, done) => {
+    done(null, user);
+});
+
+passport.deserializeUser((user, done) => {
+    done(null, user);
+});
+
+// Middleware to check authentication
+function isAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return next();
+    }
+    res.redirect('/auth/google');
+}
+
+// Middleware to check whitelist (additional check)
+function isWhitelisted(req, res, next) {
+    if (!req.user) {
+        return res.redirect('/auth/google');
+    }
+
+    const userEmail = req.user.email;
+    if (ALLOWED_USERS.length > 0 && !ALLOWED_USERS.includes(userEmail)) {
+        req.logout((err) => {
+            if (err) console.error('Logout error:', err);
+        });
+        return res.status(403).send(`
+            <html>
+                <head>
+                    <title>Access Denied</title>
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                            background: #f5f5f5;
+                        }
+                        .error-container {
+                            background: white;
+                            padding: 40px;
+                            border-radius: 12px;
+                            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                            text-align: center;
+                            max-width: 500px;
+                        }
+                        h1 { color: #e74c3c; margin-bottom: 20px; }
+                        p { color: #555; line-height: 1.6; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-container">
+                        <h1>❌ Access Denied</h1>
+                        <p>Your email (<strong>${userEmail}</strong>) is not in the whitelist.</p>
+                        <p>Please contact the administrator to request access.</p>
+                    </div>
+                </body>
+            </html>
+        `);
+    }
+    next();
+}
+
+// Routes
+app.get('/', (req, res) => {
+    if (req.isAuthenticated()) {
+        res.redirect('/schedule.html');
+    } else {
+        res.redirect('/auth/google');
+    }
+});
+
+// Google OAuth routes
+app.get('/auth/google',
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/auth/failure' }),
+    (req, res) => {
+        // Successful authentication
+        res.redirect('/schedule.html');
+    }
+);
+
+app.get('/auth/failure', (req, res) => {
+    res.status(401).send(`
+        <html>
+            <head>
+                <title>Authentication Failed</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                        background: #f5f5f5;
+                    }
+                    .error-container {
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        text-align: center;
+                        max-width: 500px;
+                    }
+                    h1 { color: #e74c3c; margin-bottom: 20px; }
+                    p { color: #555; line-height: 1.6; }
+                </style>
+            </head>
+            <body>
+                <div class="error-container">
+                    <h1>❌ Authentication Failed</h1>
+                    <p>${req.query.message || 'Unable to authenticate with Google.'}</p>
+                    <p><a href="/auth/google">Try again</a></p>
+                </div>
+            </body>
+        </html>
+    `);
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+    req.logout((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+            return res.status(500).send('Error during logout');
+        }
+        res.redirect('/auth/google');
+    });
+});
+
+// Protected routes - serve static files
+app.use('/schedule.html', isAuthenticated, isWhitelisted, express.static(__dirname));
+app.use('/generate_schedule.js', isAuthenticated, isWhitelisted, express.static(__dirname));
+app.use('/README.md', isAuthenticated, isWhitelisted, express.static(__dirname));
+app.use('/SCHEDULE_RULES.md', isAuthenticated, isWhitelisted, express.static(__dirname));
+app.use('/SUMMARY.md', isAuthenticated, isWhitelisted, express.static(__dirname));
+
+// Serve schedule.html as main page when authenticated
+app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
+    res.sendFile(__dirname + '/schedule.html');
+});
+
+// User info endpoint
+app.get('/api/user', isAuthenticated, isWhitelisted, (req, res) => {
+    res.json({
+        email: req.user.email,
+        name: req.user.name,
+        photo: req.user.photo
+    });
+});
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📋 Whitelist: ${ALLOWED_USERS.length} user(s) configured`);
+    if (ALLOWED_USERS.length > 0) {
+        console.log(`   Allowed users: ${ALLOWED_USERS.join(', ')}`);
+    } else {
+        console.warn('   ⚠️  WARNING: No users in whitelist!');
+    }
+    
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        console.error('❌ ERROR: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env file');
+    }
+});

@@ -12,8 +12,15 @@ Thumbs.db
 *.swo
 *~
 
-# Node modules (if any)
+# Node modules
 node_modules/
+
+# Environment variables
+.env
 
 # Logs
 *.log
+npm-debug.log*
+
+# Package lock (optional - you may want to commit this)
+package-lock.json

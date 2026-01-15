@@ -400,8 +400,17 @@
 </head>
 <body>
     <div class="container">
-        <h1>📅 Team Schedule</h1>
-        <p class="subtitle">Three states: On-call (with 1h overlap), Regular work, Day off | Total 165-185 hours/month (HARD RULE) | <a href="SCHEDULE_RULES.md" target="_blank">📖 Schedule Rules</a></p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+                <h1 style="margin: 0;">📅 Team Schedule</h1>
+                <p class="subtitle">Three states: On-call (with 1h overlap), Regular work, Day off | Total 165-185 hours/month (HARD RULE) | <a href="SCHEDULE_RULES.md" target="_blank">📖 Schedule Rules</a></p>
+            </div>
+            <div id="userInfo" style="text-align: right;">
+                <div id="userName" style="font-weight: 600; color: #2c3e50;"></div>
+                <div id="userEmail" style="font-size: 12px; color: #7f8c8d;"></div>
+                <a href="/logout" style="font-size: 12px; color: #e74c3c; text-decoration: none; margin-top: 5px; display: inline-block;">Logout</a>
+            </div>
+        </div>
 
         <div class="controls">
             <div class="control-group">
@@ -1501,8 +1510,27 @@
             });
         }
 
+        // Load user info if authenticated
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user');
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userName').textContent = user.name || 'User';
+                    document.getElementById('userEmail').textContent = user.email || '';
+                } else {
+                    // Not authenticated, hide user info
+                    document.getElementById('userInfo').style.display = 'none';
+                }
+            } catch (error) {
+                // Not running on server or not authenticated
+                document.getElementById('userInfo').style.display = 'none';
+            }
+        }
+
         // Run on load
         init();
+        loadUserInfo();
     </script>
 </body>
 </html>
