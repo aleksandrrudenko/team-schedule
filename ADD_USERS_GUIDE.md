@@ -8,20 +8,20 @@
 2. Выберите ваш проект
 3. Выберите ваш сервис (service)
 
-### 2. Добапользователей в переменную ALLOWED_USERS
+### 2. Добавьте пользователей в переменную ALLOWED_USERS
 
 **ВАЖНО:** Переменные должны быть в **Service Variables**, а НЕ в **Shared Variables**!
 
 #### Способ 1: Через отдельные переменные ALLOWED_USER_1, ALLOWED_USER_2, etc. (рекомендуется для Railway)
 
-Railway может обрезать длинные значения переменных, поэтому **RECOMMENDED** использовать отдельные переменные:
+Railway может обрезать длинные значения переменных, поэтому **РЕКОМЕНДУЕТСЯ** использовать отдельные переменные:
 
 1. Перейдите в **Variables** (вкладка сверху)
 2. Нажмите **"+ New Variable"**
 3. Создайте переменные:
    - `ALLOWED_USER_1` = `al.rudenko@playson.com`
    - `ALLOWED_USER_2` = `a.antipov@playson.com`
-  **ALLOWED_USER_3` = `o.mylotskyi@playson.com`
+   - `ALLOWED_USER_3` = `o.mylotskyi@playson.com`
    - `ALLOWED_USER_4` = `lavalauto@gmail.com`
    - И так далее для каждого пользователя
 
@@ -90,13 +90,19 @@ al.rudenko@playson.com,a.antipov@playson.com,новый-пользователь
 
 ```
 🔐 Whitelist configuration:
-   ALLOWED_USERS env (raw): "al.rudenko@playson.com,a.antipov@playson.com,user3@playson.com"
-   Parsed whitelist: [ 'al.rudenko@playson.com', 'a.antipov@playson.com', 'user3@playson.com' ]
-   Whitelist count: 3
+   Individual users found: 4
+   Individual user variables:
+      ALLOWED_USER_1: "al.rudenko@playson.com"
+      ALLOWED_USER_2: "a.antipov@playson.com"
+      ALLOWED_USER_3: "o.mylotskyi@playson.com"
+      ALLOWED_USER_4: "lavalauto@gmail.com"
+   Parsed whitelist: [ 'al.rudenko@playson.com', 'a.antipov@playson.com', 'o.mylotskyi@playson.com', 'lavalauto@gmail.com' ]
+   Whitelist count: 4
    Whitelist emails:
       [1] "al.rudenko@playson.com"
       [2] "a.antipov@playson.com"
-      [3] "user3@playson.com"
+      [3] "o.mylotskyi@playson.com"
+      [4] "lavalauto@gmail.com"
 ```
 
 ### 6. Проверьте доступ
@@ -129,32 +135,32 @@ al.rudenko@playson.com,a.antipov@playson.com,новый-пользователь
 
 ```
 🔐 Whitelist configuration:
+   Individual users found: 0
    ALLOWED_USERS env (raw): "al.rudenko@playson.com"
    Parsed whitelist: [ 'al.rudenko@playson.com' ]
    Whitelist count: 1
 ```
 
 **Это значит:**
-- Переменная не была правильно сохранена в Railway
+- Переменные ALLOWED_USER_1, ALLOWED_USER_2, etc. не были созданы
+- ИЛИ переменная ALLOWED_USERS не была правильно сохранена в Railway
 - ИЛИ сервер не перезапустился после изменения переменных
-- ИЛИ переменная была добавлена в Shared Variables вместо Service Variables
+- ИЛИ переменные были добавлены в Shared Variables вместо Service Variables
 
 **Решение:**
 
-1. **Проверьте, что переменная в Service Variables (не Shared Variables)**
+1. **Проверьте, что переменные в Service Variables (не Shared Variables)**
    - Railway Dashboard → ваш сервис → Variables (НЕ Shared Variables!)
-   - Убедитесь, что переменная `ALLOWED_USERS` находится там
+   - Убедитесь, что переменные `ALLOWED_USER_1`, `ALLOWED_USER_2`, etc. находятся там
 
-2. **Проверьте формат переменной в Railway**
-   - Откройте переменную `ALLOWED_USERS` для редактирования
-   - Убедитесь, что все email адреса в одной строке через запятую:
-     ```
-     al.rudenko@playson.com,a.antipov@playson.com,o.mylotskyi@playson.com,lavalauto@gmail.com
-     ```
-   - **ВАЖНО:** Убедитесь, что нет лишних запятых в конце строки
-   - **ВАЖНО:** Убедитесь, что нет переносов строк внутри значения
+2. **Создайте отдельные переменные для каждого пользователя (РЕКОМЕНДУЕТСЯ)**
+   - Создайте `ALLOWED_USER_1` = `al.rudenko@playson.com`
+   - Создайте `ALLOWED_USER_2` = `a.antipov@playson.com`
+   - Создайте `ALLOWED_USER_3` = `o.mylotskyi@playson.com`
+   - Создайте `ALLOWED_USER_4` = `lavalauto@gmail.com`
+   - Каждый email в отдельной переменной
 
-3. **Сохраните переменную и перезапустите сервис**
+3. **Сохраните переменные и перезапустите сервис**
    - Нажмите галочку (✓) для сохранения
    - Railway должен автоматически перезапустить сервис
    - ИЛИ сделайте Redeploy вручную: Deployments → последний deployment → Redeploy
