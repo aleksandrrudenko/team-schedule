@@ -29,6 +29,8 @@ console.log('🔐 Whitelist configuration:');
 console.log('   ALLOWED_USERS env (raw):', JSON.stringify(ALLOWED_USERS_RAW));
 console.log('   ALLOWED_USERS env (length):', ALLOWED_USERS_RAW.length);
 console.log('   ALLOWED_USERS env (char codes):', ALLOWED_USERS_RAW.split('').map(c => c.charCodeAt(0)).join(','));
+console.log('   ALLOWED_USERS env (first 200 chars):', ALLOWED_USERS_RAW.substring(0, 200));
+console.log('   ALLOWED_USERS env (last 200 chars):', ALLOWED_USERS_RAW.length > 200 ? ALLOWED_USERS_RAW.substring(ALLOWED_USERS_RAW.length - 200) : ALLOWED_USERS_RAW);
 console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
 if (ALLOWED_USERS.length > 0) {
@@ -40,6 +42,17 @@ if (ALLOWED_USERS.length > 0) {
     console.log('   ⚠️  WARNING: Whitelist is empty!');
     console.log('   💡 Check that ALLOWED_USERS is set in Service Variables (not Shared Variables)');
     console.log('   💡 Format: ALLOWED_USERS=email1@domain.com,email2@domain.com');
+}
+
+// Check if the value might be truncated (common Railway issue with long values)
+if (ALLOWED_USERS_RAW.length > 0 && ALLOWED_USERS_RAW.length < 50 && ALLOWED_USERS_RAW.includes(',')) {
+    const firstCommaIndex = ALLOWED_USERS_RAW.indexOf(',');
+    if (firstCommaIndex > 0 && firstCommaIndex < ALLOWED_USERS_RRAW.length - 1) {
+        console.log('⚠️  WARNING: ALLOWED_USERS might be truncated!');
+        console.log('   First comma found at position:', firstCommaIndex);
+        console.log('   Value after comma:', ALLOWED_USERS_RAW.substring(firstCommaIndex + 1));
+        console.log('   💡 Railway might be truncating the value. Try using Raw Editor or check for special characters.');
+    }
 }
 
 // Session configuration
