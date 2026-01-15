@@ -335,14 +335,21 @@ app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), (
         const scheduleData = {
             ...req.body,
             savedBy: req.user.email,
+            savedByName: req.user.name || req.user.email,
             savedAt: new Date().toISOString()
         };
         
         const filePath = path.join(__dirname, 'saved-schedule.json');
         fs.writeFileSync(filePath, JSON.stringify(scheduleData, null, 2));
         
-        console.log(`✅ Schedule saved by ${req.user.email}`);
-        res.json({ success: true, message: 'Schedule saved successfully' });
+        console.log(`✅ Schedule saved by ${req.user.email} (${req.user.name || 'unknown'})`);
+        res.json({ 
+            success: true, 
+            message: 'Schedule saved successfully',
+            savedBy: scheduleData.savedBy,
+            savedByName: scheduleData.savedByName,
+            savedAt: scheduleData.savedAt
+        });
     } catch (error) {
         console.error('❌ Error saving schedule:', error);
         res.status(500).json({ error: 'Failed to save schedule', details: error.message });
