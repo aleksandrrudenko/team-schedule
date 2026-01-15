@@ -1305,6 +1305,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (data.onCallSchedule && data.shiftSchedule && data.days) {
+                        // Load saved schedule
                         globalOnCallSchedule = data.onCallSchedule;
                         globalShiftSchedule = data.shiftSchedule;
                         globalDays = data.days;
@@ -1317,11 +1318,11 @@
                             document.getElementById('yearSelect').value = data.year;
                         }
                         
-                    // Update last saved info
-                    if (data.savedBy || data.savedAt) {
-                        showLastSavedInfo();
-                        updateLastSavedInfo(data.savedBy || data.savedByName, data.savedAt);
-                    }
+                        // Update last saved info
+                        if (data.savedBy || data.savedAt) {
+                            showLastSavedInfo();
+                            updateLastSavedInfo(data.savedBy || data.savedByName, data.savedAt);
+                        }
                         
                         // Refresh display
                         const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
@@ -1329,15 +1330,23 @@
                         refreshSchedule();
                         
                         console.log('✅ Loaded saved schedule');
+                        return true; // Indicate that saved schedule was loaded
                     }
                 } else {
                     // No saved schedule - hide last saved info
-                    document.getElementById('lastSavedInfo').style.display = 'none';
+                    const lastSavedInfoEl = document.getElementById('lastSavedInfo');
+                    if (lastSavedInfoEl) {
+                        lastSavedInfoEl.style.display = 'none';
+                    }
                 }
             } catch (error) {
                 console.log('No saved schedule found or error loading:', error);
-                document.getElementById('lastSavedInfo').style.display = 'none';
+                const lastSavedInfoEl = document.getElementById('lastSavedInfo');
+                if (lastSavedInfoEl) {
+                    lastSavedInfoEl.style.display = 'none';
+                }
             }
+            return false; // No saved schedule loaded
         }
 
         // Export to CSV
@@ -1674,10 +1683,18 @@
             }
         }
 
-        // Run on load
-        init();
-        loadUserInfo();
-        loadSavedSchedule();
+        // Run on load - load saved schedule first, then generate if needed
+        async function initializeApp() {
+            await loadUserInfo();
+            const savedScheduleLoaded = await loadSavedSchedule();
+            
+            // Only generate new schedule if no saved schedule was loaded
+            if (!savedScheduleLoaded) {
+                init(); // This will call generateSchedule()
+            }
+        }
+        
+        initializeApp();
     </script>
 </body>
 </html>
