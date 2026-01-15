@@ -9,8 +9,14 @@ const PORT = process.env.PORT || 3000;
 
 // Whitelist of allowed users (Google email addresses)
 const ALLOWED_USERS = process.env.ALLOWED_USERS 
-    ? process.env.ALLOWED_USERS.split(',').map(email => email.trim())
+    ? process.env.ALLOWED_USERS.split(',').map(email => email.trim().toLowerCase())
     : [];
+
+// Debug logging
+console.log('🔐 Whitelist configuration:');
+console.log('   ALLOWED_USERS env:', process.env.ALLOWED_USERS);
+console.log('   Parsed whitelist:', ALLOWED_USERS);
+console.log('   Whitelist count:', ALLOWED_USERS.length);
 
 // Session configuration
 app.use(session({
@@ -50,14 +56,27 @@ passport.use(new GoogleStrategy({
 }, (accessToken, refreshToken, profile, done) => {
     // Check if user is in whitelist
     const userEmail = profile.emails[0].value;
+    const userEmailLower = userEmail.toLowerCase();
+    
+    console.log('🔍 Authentication attempt:');
+    console.log('   User email:', userEmail);
+    console.log('   User email (lowercase):', userEmailLower);
+    console.log('   Whitelist:', ALLOWED_USERS);
+    console.log('   Whitelist check (exact):', ALLOWED_USERS.includes(userEmail));
+    console.log('   Whitelist check (lowercase):', ALLOWED_USERS.includes(userEmailLower));
     
     if (ALLOWED_USERS.length === 0) {
         console.warn('⚠️  WARNING: No users in whitelist. All users will be denied access.');
         return done(null, false, { message: 'Access denied. No users configured.' });
     }
 
-    if (!ALLOWED_USERS.includes(userEmail)) {
+    // Check both exact match and lowercase match
+    const isAllowed = ALLOWED_USERS.includes(userEmail) || ALLOWED_USERS.includes(userEmailLower);
+    
+    if (!isAllowed) {
         console.log(`❌ Access denied for: ${userEmail}`);
+        console.log('   Reason: Email not found in whitelist');
+        console.log('   Whitelist contains:', ALLOWED_USERS);
         return done(null, false, { message: 'Access denied. Your email is not in the whitelist.' });
     }
 
