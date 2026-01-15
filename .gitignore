@@ -24,3 +24,6 @@ npm-debug.log*
 
 # Package lock (optional - you may want to commit this)
 package-lock.json
+
+# Saved schedule data
+saved-schedule.json
