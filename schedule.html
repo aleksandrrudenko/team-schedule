@@ -1024,6 +1024,12 @@
             globalOnCallSchedule = onCallSchedule;
             globalShiftSchedule = shiftSchedule;
             globalDays = days;
+            
+            // Clear saved schedule info when generating new schedule
+            const lastSavedInfoEl = document.getElementById('lastSavedInfo');
+            if (lastSavedInfoEl) {
+                lastSavedInfoEl.style.display = 'none';
+            }
 
             // Statistics
             const stats = calculateStats(onCallSchedule, days, shiftSchedule);
@@ -1255,8 +1261,16 @@
 
         // Update last saved info display
         function updateLastSavedInfo(savedBy, savedAt) {
+            const lastSavedByEl = document.getElementById('lastSavedBy');
+            const lastSavedAtEl = document.getElementById('lastSavedAt');
+            
+            if (!lastSavedByEl || !lastSavedAtEl) {
+                console.warn('Last saved info elements not found');
+                return;
+            }
+            
             if (savedBy) {
-                document.getElementById('lastSavedBy').textContent = savedBy;
+                lastSavedByEl.textContent = savedBy;
             }
             if (savedAt) {
                 const date = new Date(savedAt);
@@ -1267,7 +1281,15 @@
                     hour: '2-digit',
                     minute: '2-digit'
                 });
-                document.getElementById('lastSavedAt').textContent = dateStr;
+                lastSavedAtEl.textContent = dateStr;
+            }
+        }
+
+        // Show last saved info section
+        function showLastSavedInfo() {
+            const lastSavedInfoEl = document.getElementById('lastSavedInfo');
+            if (lastSavedInfoEl) {
+                lastSavedInfoEl.style.display = 'block';
             }
         }
 
