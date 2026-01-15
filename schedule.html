@@ -711,7 +711,50 @@
                     }
                 }
             });
-            } // Конец цикла проходов
+            } // End of passes loop
+
+            // Remove one regular work shift from each employee to get closer to ~180 hours
+            // This is done after ensuring minimum 165 hours is met
+            allEmployees.forEach(emp => {
+                const onCallHours = employeeStats[emp.name].onCallHours;
+                const currentShifts = employeeStats[emp.name].shifts;
+                const currentRegularHours = currentShifts * 8;
+                const totalHours = onCallHours + currentRegularHours;
+                
+                // Only remove a shift if:
+                // 1. Employee has at least one shift
+                // 2. After removal, they will still have >= 165 hours
+                if (currentShifts > 0 && (totalHours - 8) >= minTotalHours) {
+                    // Find a day with a regular work shift (prefer non-on-call days, then weekends)
+                    const daysWithShifts = [];
+                    days.forEach(dayInfo => {
+                        const hasShift = !!shiftSchedule[emp.name][dayInfo.day];
+                        const isOnCall = onCallSchedule[emp.name].days.includes(dayInfo.day);
+                        if (hasShift) {
+                            daysWithShifts.push({
+                                day: dayInfo.day,
+                                dayInfo: dayInfo,
+                                isOnCall: isOnCall,
+                                isWeekend: dayInfo.isWeekend
+                            });
+                        }
+                    });
+                    
+                    // Prefer removing from non-on-call days, then weekends
+                    daysWithShifts.sort((a, b) => {
+                        if (a.isOnCall !== b.isOnCall) return a.isOnCall ? 1 : -1;
+                        if (a.isWeekend !== b.isWeekend) return a.isWeekend ? 1 : -1;
+                        return 0;
+                    });
+                    
+                    // Remove the first shift (prefer non-on-call, non-weekend)
+                    if (daysWithShifts.length > 0) {
+                        const dayToRemove = daysWithShifts[0].day;
+                        shiftSchedule[emp.name][dayToRemove] = null;
+                        employeeStats[emp.name].shifts--;
+                    }
+                }
+            });
 
             return shiftSchedule;
         }
