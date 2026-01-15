@@ -105,9 +105,16 @@ passport.deserializeUser((user, done) => {
 
 // Middleware to check authentication
 function isAuthenticated(req, res, next) {
+    console.log('🔐 isAuthenticated check:');
+    console.log('   Is authenticated:', req.isAuthenticated());
+    console.log('   User:', req.user ? req.user.email : 'No user');
+    console.log('   Session ID:', req.sessionID);
+    
     if (req.isAuthenticated()) {
+        console.log('   ✅ Authentication passed');
         return next();
     }
+    console.log('   ❌ Not authenticated, redirecting to /auth/google');
     res.redirect('/auth/google');
 }
 
@@ -193,6 +200,10 @@ app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/failure' }),
     (req, res) => {
         // Successful authentication
+        console.log('✅ OAuth callback successful');
+        console.log('   User:', req.user ? req.user.email : 'No user');
+        console.log('   Session ID:', req.sessionID);
+        console.log('   Is authenticated:', req.isAuthenticated());
         res.redirect('/schedule.html');
     }
 );
@@ -249,6 +260,9 @@ app.get('/logout', (req, res) => {
 // Protected routes - serve static files with authentication
 // Serve schedule.html as main page when authenticated
 app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
+    console.log('✅ Accessing /schedule.html');
+    console.log('   User:', req.user ? req.user.email : 'No user');
+    console.log('   Is authenticated:', req.isAuthenticated());
     res.sendFile(__dirname + '/schedule.html');
 });
 
