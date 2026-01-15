@@ -12,11 +12,22 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // Whitelist of allowed users (Google email addresses)
-// Support multiple formats: comma-separated, space-separated, or newline-separated
+// Support multiple formats:
+// 1. ALLOWED_USER_1, ALLOWED_USER_2, ALLOWED_USER_3, ALLOWED_USER_4 (individual variables)
+// 2. ALLOWED_USERS (comma-separated, space-separated, or newline-separated)
 const ALLOWED_USERS_RAW = process.env.ALLOWED_USERS || '';
 
-// More robust parsing: handle commas, newlines, spaces, and trailing commas
-const ALLOWED_USERS = ALLOWED_USERS_RAW
+// Read from individual variables (ALLOWED_USER_1, ALLOWED_USER_2, etc.)
+const INDIVIDUAL_USERS = [];
+for (let i = 1; i <= 20; i++) {  // Support up to 20 users
+    const user = process.env[`ALLOWED_USER_${i}`];
+    if (user && user.trim().length > 0 && user.includes('@')) {
+        INDIVIDUAL_USERS.push(user.trim().toLowerCase());
+    }
+}
+
+// Parse from ALLOWED_USERS if provided
+const ALLOWED_USERS_FROM_STRING = ALLOWED_USERS_RAW
     ? ALLOWED_USERS_RAW
         .split(/[,\n\r]+/)  // Split by comma, newline, or carriage return
         .map(email => email.trim())  // Trim whitespace
@@ -24,35 +35,32 @@ const ALLOWED_USERS = ALLOWED_USERS_RAW
         .map(email => email.toLowerCase())  // Convert to lowercase
     : [];
 
+// Combine both sources, remove duplicates
+const ALLOWED_USERS = [...new Set([...INDIVIDUAL_USERS, ...ALLOWED_USERS_FROM_STRING])];
+
 // Debug logging with detailed information
 console.log('🔐 Whitelist configuration:');
 console.log('   ALLOWED_USERS env (raw):', JSON.stringify(ALLOWED_USERS_RAW));
 console.log('   ALLOWED_USERS env (length):', ALLOWED_USERS_RAW.length);
-console.log('   ALLOWED_USERS env (char codes):', ALLOWED_USERS_RAW.split('').map(c => c.charCodeAt(0)).join(','));
-console.log('   ALLOWED_USERS env (first 200 chars):', ALLOWED_USERS_RAW.substring(0, 200));
-console.log('   ALLOWED_USERS env (last 200 chars):', ALLOWED_USERS_RAW.length > 200 ? ALLOWED_USERS_RAW.substring(ALLOWED_USERS_RAW.length - 200) : ALLOWED_USERS_RAW);
+console.log('   Individual users found:', INDIVIDUAL_USERS.length);
+if (INDIVIDUAL_USERS.length > 0) {
+    console.log('   Individual user variables:');
+    INDIVIDUAL_USERS.forEach((email, index) => {
+        console.log(`      ALLOWED_USER_${index + 1}: "${email}"`);
+    });
+}
+console.log('   ALLOWED_USERS from string:', ALLOWED_USERS_FROM_STRING.length);
 console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
 if (ALLOWED_USERS.length > 0) {
     console.log('   Whitelist emails:');
-    ALLOWED_USERS.forEach((email, index) => {
+    ALLOWED_USERS.forEach((email, index) {
         console.log(`      [${index + 1}] "${email}"`);
     });
 } else {
-    console.log('   ⚠️  WARNING: Whitelist is empty!');
-    console.log('   💡 Check that ALLOWED_USERS is set in Service Variables (not Shared Variables)');
-    console.log('   💡 Format: ALLOWED_USERS=email1@domain.com,email2@domain.com');
-}
-
-// Check if the value might be truncated (common Railway issue with long values)
-if (ALLOWED_USERS_RAW.length > 0 && ALLOWED_USERS_RAW.length < 50 && ALLOWED_USERS_RAW.includes(',')) {
-    const firstCommaIndex = ALLOWED_USERS_RAW.indexOf(',');
-    if (firstCommaIndex > 0 && firstCommaIndex < ALLOWED_USERS_RRAW.length - 1) {
-        console.log('⚠️  WARNING: ALLOWED_USERS might be truncated!');
-        console.log('   First comma found at position:', firstCommaIndex);
-        console.log('   Value after comma:', ALLOWED_USERS_RAW.substring(firstCommaIndex + 1));
-        console.log('   💡 Railway might be truncating the value. Try using Raw Editor or check for special characters.');
-    }
+    console.log('   ⚠️  WARNING: Whitemist is empty!');
+    console.log('   💡 Check that ALLOWED_USER_1, ALLOWED_USER_2, etc. are set in Service Variables');
+    console.log('   💡 OR set ALLOWED_USERS=email1@domain.com,email2@domain.com');
 }
 
 // Session configuration
