@@ -531,6 +531,40 @@
             return onCallSchedule;
         }
 
+        // Check consecutive work days for an employee (for Europeans: max 5 days)
+        function getConsecutiveWorkDays(employee, dayIndex, days, shiftSchedule, onCallSchedule) {
+            let consecutive = 0;
+            // Count backwards from current day
+            for (let i = dayIndex; i >= 0; i--) {
+                const dayInfo = days[i];
+                const hasShift = !!shiftSchedule[employee.name][dayInfo.day];
+                const isOnCall = onCallSchedule[employee.name].days.includes(dayInfo.day);
+                if (hasShift || isOnCall) {
+                    consecutive++;
+                } else {
+                    break;
+                }
+            }
+            return consecutive;
+        }
+
+        // Check consecutive days off for an employee (for Europeans: max 2 days)
+        function getConsecutiveDaysOff(employee, dayIndex, days, shiftSchedule, onCallSchedule) {
+            let consecutive = 0;
+            // Count backwards from current day
+            for (let i = dayIndex; i >= 0; i--) {
+                const dayInfo = days[i];
+                const hasShift = !!shiftSchedule[employee.name][dayInfo.day];
+                const isOnCall = onCallSchedule[employee.name].days.includes(dayInfo.day);
+                if (!hasShift && !isOnCall) {
+                    consecutive++;
+                } else {
+                    break;
+                }
+            }
+            return consecutive;
+        }
+
         // Distribute regular work (shifts) between employees
         // HARD RULE: 165-185 hours per month = on-call hours + regular work hours
         // Regular work can be parallel with on-call
@@ -617,11 +651,15 @@
             // Regular work can be parallel with on-call
             // Priority to those not on-call this day (to reduce days off)
             allShifts.forEach(({ day, shift }) => {
+                // Find day index
+                const dayIndex = days.findIndex(d => d.day === day.day);
+                
                 // Find employee who:
                 // 1. Has not reached 180 hours yet (continue assigning even after target)
                 // 2. Priority to those with fewer hours
                 // 3. HUGE priority to those NOT on-call this day (to reduce days off)
                 // 4. Regular work can be parallel with on-call
+                // 5. For Europeans: avoid more than 5 consecutive work days or 2 consecutive days off
                 
                 let bestEmployee = null;
                 let bestScore = -1;
@@ -645,6 +683,28 @@
                     // If exceeded maximum, skip
                     if (hoursOverMax > 0) {
                         return;
+                    }
+                    
+                    // For Europeans: check consecutive days (soft rule)
+                    if (isEuropean && dayIndex >= 0) {
+                        const consecutiveWorkDays = getConsecutiveWorkDays(emp, dayIndex - 1, days, shiftSchedule, onCallSchedule);
+                        const consecutiveDaysOff = getConsecutiveDaysOff(emp, dayIndex - 1, days, shiftSchedule, onCallSchedule);
+                        
+                        // If already has 5+ consecutive work days, penalize adding another
+                        if (consecutiveWorkDays >= 5) {
+                            // Skip if not critical (below minimum)
+                            const isBelowMinimum = totalHours < minTotalHours;
+                            if (!isBelowMinimum) {
+                                return; // Skip this employee for this shift
+                            }
+                        }
+                        
+                        // If already has 2+ consecutive days off, prefer not to add another day off
+                        // (but this is handled by the fact that we're assigning a shift, so it won't be a day off)
+                        // However, if we're trying to assign and they have 2+ days off, give bonus
+                        if (consecutiveDaysOff >= 2) {
+                            // This is good - they need work, so we'll add bonus below
+                        }
                     }
                     
                     // If reached minimum (165) but not maximum (185), continue with lower priority
@@ -680,6 +740,22 @@
                     // Group bonuses
                     if (isEuropean) {
                         score += 25; // Large bonus for Europeans
+                        
+                        // Bonus for Europeans with consecutive days off (to break the streak)
+                        if (dayIndex >= 0) {
+                            const consecutiveDaysOff = getConsecutiveDaysOff(emp, dayIndex - 1, days, shiftSchedule, onCallSchedule);
+                            if (consecutiveDaysOff >= 2) {
+                                score += 50; // Bonus to break consecutive days off
+                            }
+                        }
+                        
+                        // Penalty for Europeans with too many consecutive work days (soft rule)
+                        if (dayIndex >= 0) {
+                            const consecutiveWorkDays = getConsecutiveWorkDays(emp, dayIndex - 1, days, shiftSchedule, onCallSchedule);
+                            if (consecutiveWorkDays >= 4) {
+                                score -= 30; // Penalty if already has 4+ consecutive work days
+                            }
+                        }
                     } else if (isBrazilian || isAustralian) {
                         score += 15; // Bonus for Brazilians and Australians
                     }
@@ -720,34 +796,52 @@
                 const currentShifts = employeeStats[emp.name].shifts;
                 const currentRegularHours = currentShifts * 8;
                 const totalHours = onCallHours + currentRegularHours;
+                const isEuropean = employeeStats[emp.name].isEuropean;
                 
                 // Only remove a shift if:
                 // 1. Employee has at least one shift
                 // 2. After removal, they will still have >= 165 hours
                 if (currentShifts > 0 && (totalHours - 8) >= minTotalHours) {
                     // Find a day with a regular work shift (prefer non-on-call days, then weekends)
+                    // For Europeans: prefer removing from days that would break long consecutive work streaks
                     const daysWithShifts = [];
-                    days.forEach(dayInfo => {
+                    days.forEach((dayInfo, dayIndex) => {
                         const hasShift = !!shiftSchedule[emp.name][dayInfo.day];
                         const isOnCall = onCallSchedule[emp.name].days.includes(dayInfo.day);
                         if (hasShift) {
+                            // For Europeans: check if removing this shift would help break consecutive work days
+                            let consecutiveWorkDays = 0;
+                            if (isEuropean) {
+                                consecutiveWorkDays = getConsecutiveWorkDays(emp, dayIndex, days, shiftSchedule, onCallSchedule);
+                            }
+                            
                             daysWithShifts.push({
                                 day: dayInfo.day,
                                 dayInfo: dayInfo,
+                                dayIndex: dayIndex,
                                 isOnCall: isOnCall,
-                                isWeekend: dayInfo.isWeekend
+                                isWeekend: dayInfo.isWeekend,
+                                consecutiveWorkDays: consecutiveWorkDays
                             });
                         }
                     });
                     
-                    // Prefer removing from non-on-call days, then weekends
+                    // Prefer removing from:
+                    // 1. Days that are part of long consecutive work streaks (for Europeans: 5+ days)
+                    // 2. Non-on-call days
+                    // 3. Weekends
                     daysWithShifts.sort((a, b) => {
+                        if (isEuropean) {
+                            // For Europeans: prioritize removing from long consecutive work streaks
+                            if (a.consecutiveWorkDays >= 5 && b.consecutiveWorkDays < 5) return -1;
+                            if (a.consecutiveWorkDays < 5 && b.consecutiveWorkDays >= 5) return 1;
+                        }
                         if (a.isOnCall !== b.isOnCall) return a.isOnCall ? 1 : -1;
                         if (a.isWeekend !== b.isWeekend) return a.isWeekend ? 1 : -1;
                         return 0;
                     });
                     
-                    // Remove the first shift (prefer non-on-call, non-weekend)
+                    // Remove the first shift (prefer breaking long streaks, then non-on-call, then non-weekend)
                     if (daysWithShifts.length > 0) {
                         const dayToRemove = daysWithShifts[0].day;
                         shiftSchedule[emp.name][dayToRemove] = null;
