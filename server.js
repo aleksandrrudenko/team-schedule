@@ -26,13 +26,15 @@ console.log('   Whitelist emails:', ALLOWED_USERS.map(e => `"${e}"`).join(', '))
 // Session configuration
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
-    resave: false,
-    saveUninitialized: false,
+    resave: true,  // Changed to true for Railway
+    saveUninitialized: true,  // Changed to true for Railway
     cookie: {
         secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax'  // Added for better cookie handling
+    },
+    name: 'sessionId'  // Explicit session name
 }));
 
 // Check required environment variables
