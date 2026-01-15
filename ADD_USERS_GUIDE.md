@@ -92,17 +92,68 @@ al.rudenko@playson.com,a.antipov@playson.com,новый-пользователь
 
 ### Проблема: Пользователь не может войти
 
-**Проверьте логи в Railway:**
+**Проверьте логи в Railway при СТАРТЕ сервера:**
 
-При попытке входа должно быть видно:
+Должно быть видно:
+
+```
+🔐 Whitelist configuration:
+   ALLOWED_USERS env (raw): "al.rudenko@playson.com,a.antipov@playson.com,lavalauto@gmail.com"
+   Parsed whitelist: [ 'al.rudenko@playson.com', 'a.antipov@playson.com', 'lavalauto@gmail.com' ]
+   Whitelist count: 3
+   Whitelist emails:
+      [1] "al.rudenko@playson.com"
+      [2] "a.antipov@playson.com"
+      [3] "lavalauto@gmail.com"
+```
+
+**Если видите только одного пользователя в логах:**
+
+```
+🔐 Whitelist configuration:
+   ALLOWED_USERS env (raw): "al.rudenko@playson.com"
+   Parsed whitelist: [ 'al.rudenko@playson.com' ]
+   Whitelist count: 1
+```
+
+**Это значит:**
+- Переменная не была правильно сохранена в Railway
+- ИЛИ сервер не перезапустился после изменения переменных
+- ИЛИ переменная была добавлена в Shared Variables вместо Service Variables
+
+**Решение:**
+
+1. **Проверьте, что переменная в Service Variables (не Shared Variables)**
+   - Railway Dashboard → ваш сервис → Variables (НЕ Shared Variables!)
+   - Убедитесь, что переменная `ALLOWED_USERS` находится там
+
+2. **Проверьте формат переменной в Railway**
+   - Откройте переменную `ALLOWED_USERS` для редактирования
+   - Убедитесь, что все email адреса в одной строке через запятую:
+     ```
+     al.rudenko@playson.com,a.antipov@playson.com,o.mylotskyi@playson.com,lavalauto@gmail.com
+     ```
+   - **ВАЖНО:** Убедитесь, что нет лишних запятых в конце строки
+   - **ВАЖНО:** Убедитесь, что нет переносов строк внутри значения
+
+3. **Сохраните переменную и перезапустите сервис**
+   - Нажмите галочку (✓) для сохранения
+   - Railway должен автоматически перезапустить сервис
+   - ИЛИ сделайте Redeploy вручную: Deployments → последний deployment → Redeploy
+
+4. **Проверьте логи после перезапуска**
+   - После перезапуска проверьте логи при старте
+   - Должно быть видно всех пользователей в whitelist
+
+**При попытке входа должно быть видно:**
 
 ```
 🔍 Authentication attempt:
-   User email: user@playson.com
-   User email (lowercase): user@playson.com
-   Whitelist: [ 'al.rudenko@playson.com', 'a.antipov@playson.com' ]
+   User email: lavalauto@gmail.com
+   User email (lowercase): lavalauto@gmail.com
+   Whitelist: [ 'al.rudenko@playson.com', 'a.antipov@playson.com', 'lavalauto@gmail.com' ]
    Whitelist check (exact): false
-   Whitelist check (lowercase): false
+   Whitelist check (lowercase): true
 ```
 
 Если `Whitelist check (lowercase): false`, значит email не найден в whitelist.
@@ -124,6 +175,7 @@ al.rudenko@playson.com,a.antipov@playson.com,новый-пользователь
    - Используйте запятые: `email1@domain.com,email2@domain.com`
    - Без кавычек: `ALLOWED_USERS=email1@domain.com,email2@domain.com`
    - Не используйте: `ALLOWED_USERS="email1@domain.com,email2@domain.com"`
+   - **Убедитесь, что все email в одной строке (без переносов строк)**
 
 ### Проблема: В логах видно только одного пользователя
 
