@@ -1,5 +1,7 @@
 # Railway Deployment Setup Guide
 
+> 📖 **Подробная инструкция:** См. [ENV_VARIABLES_GUIDE.md](ENV_VARIABLES_GUIDE.md) для пошагового получения всех переменных
+
 ## ⚠️ Critical: Environment Variables
 
 The application **requires** these environment variables to be set in Railway:
