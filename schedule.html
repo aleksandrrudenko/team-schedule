@@ -1683,14 +1683,20 @@
             }
         }
 
-        // Run on load - load saved schedule first, then generate if needed
+        // Run on load - initialize UI first, then load saved schedule or generate new one
         async function initializeApp() {
+            // Initialize UI elements (month/year selectors, etc.)
+            init();
+            
+            // Load user info
             await loadUserInfo();
+            
+            // Try to load saved schedule
             const savedScheduleLoaded = await loadSavedSchedule();
             
             // Only generate new schedule if no saved schedule was loaded
             if (!savedScheduleLoaded) {
-                init(); // This will call generateSchedule()
+                generateSchedule(); // Generate new schedule
             }
         }
         
