@@ -276,12 +276,26 @@ app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
     console.log('✅ Accessing /schedule.html');
     console.log('   User:', req.user ? req.user.email : 'No user');
     console.log('   Is authenticated:', req.isAuthenticated());
+    console.log('   Session ID:', req.sessionID);
     const filePath = path.join(__dirname, 'schedule.html');
     console.log('   File path:', filePath);
+    console.log('   __dirname:', __dirname);
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+        console.error('❌ schedule.html not found at:', filePath);
+        return res.status(404).send('Schedule page not found');
+    }
+    
     res.sendFile(filePath, (err) => {
         if (err) {
             console.error('❌ Error sending schedule.html:', err);
-            res.status(500).send('Error loading schedule page');
+            if (!res.headersSent) {
+                res.status(500).send('Error loading schedule page');
+            }
+        } else {
+            console.log('✅ schedule.html sent successfully');
         }
     });
 });
