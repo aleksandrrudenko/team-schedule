@@ -409,6 +409,11 @@
                 <div id="userName" style="font-weight: 600; color: #2c3e50;"></div>
                 <div id="userEmail" style="font-size: 12px; color: #7f8c8d;"></div>
                 <a href="/logout" style="font-size: 12px; color: #e74c3c; text-decoration: none; margin-top: 5px; display: inline-block;">Logout</a>
+                <div id="lastSavedInfo" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #95a5a6; display: none;">
+                    <div style="font-weight: 500; color: #7f8c8d; margin-bottom: 3px;">Last saved:</div>
+                    <div id="lastSavedBy" style="color: #555;">-</div>
+                    <div id="lastSavedAt" style="color: #95a5a6; font-size: 10px;">-</div>
+                </div>
             </div>
         </div>
 
@@ -1667,11 +1672,6 @@
                 // Not running on server or not authenticated
                 document.getElementById('userInfo').style.display = 'none';
             }
-        }
-
-        // Show last saved info section
-        function showLastSavedInfo() {
-            document.getElementById('lastSavedInfo').style.display = 'block';
         }
 
         // Run on load
