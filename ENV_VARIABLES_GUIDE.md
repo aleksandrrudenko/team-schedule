@@ -83,16 +83,27 @@ my-super-secret-key-12345-abcdef-xyz-railway-2024
 
 ---
 
-## 3️⃣ ALLOWED_USERS
+## 3️⃣ ALLOWED_USERS (или ALLOWED_USER_1, ALLOWED_USER_2, etc.)
 
 ⚠️ **Это НЕ нужно создавать где-то!** Это просто список email адресов, которые **вы сами пишете** в Railway Variables.
 
 ### Что это такое?
-Это список людей, которым разрешен доступ к вашему приложению. Вы просто перечисляете их email адреса через запятую.
+Это список людей, которым разрешен доступ к вашему приложению. Вы можете использовать два способа:
 
 ### Как заполнить?
 
-**Вариант 1: Один пользователь (вы)**
+**Вариант 1: Отдельные переменные ALLOWED_USER_1, ALLOWED_USER_2, etc. (РЕКОМЕНДУЕТСЯ для Railway)**
+
+Railway может обрезать длинные значения переменных, поэтому лучше использовать отдельные переменные:
+
+```
+ALLOWED_USER_1=al.rudenko@playson.com
+ALLOWED_USER_2=a.antipov@playson.com
+ALLOWED_USER_3=o.mylotskyi@playson.com
+ALLOWED_USER_4=lavalauto@gmail.com
+```
+
+**Вариант 2: Один пользователь через ALLOWED_USERS**
 ```
 ALLOWED_USERS=your-email@gmail.com
 ```

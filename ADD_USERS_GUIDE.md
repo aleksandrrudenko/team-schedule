@@ -8,11 +8,29 @@
 2. Выберите ваш проект
 3. Выберите ваш сервис (service)
 
-### 2. Добавьте пользователей в переменную ALLOWED_USERS
+### 2. Добапользователей в переменную ALLOWED_USERS
 
-**ВАЖНО:** Переменная должна быть в **Service Variables**, а НЕ в **Shared Variables**!
+**ВАЖНО:** Переменные должны быть в **Service Variables**, а НЕ в **Shared Variables**!
 
-#### Способ 1: Через Raw Editor (рекомендуется)
+#### Способ 1: Через отдельные переменные ALLOWED_USER_1, ALLOWED_USER_2, etc. (рекомендуется для Railway)
+
+Railway может обрезать длинные значения переменных, поэтому **RECOMMENDED** использовать отдельные переменные:
+
+1. Перейдите в **Variables** (вкладка сверху)
+2. Нажмите **"+ New Variable"**
+3. Создайте переменные:
+   - `ALLOWED_USER_1` = `al.rudenko@playson.com`
+   - `ALLOWED_USER_2` = `a.antipov@playson.com`
+  **ALLOWED_USER_3` = `o.mylotskyi@playson.com`
+   - `ALLOWED_USER_4` = `lavalauto@gmail.com`
+   - И так далее для каждого пользователя
+
+**Преимущества:**
+- Railway не обрезает значения
+- Легко добавлять/удалять отдельных пользователей
+- Каждый email в отдельной переменной
+
+#### Способ 2: Через Raw Editor (если ALLOWED_USERS работает)
 
 1. Перейдите в **Variables** (вкладка сверху)
 2. Нажмите **"Raw Editor"**
