@@ -14,17 +14,21 @@ app.set('trust proxy', 1);
 // Whitelist of allowed users (Google email addresses)
 // Support multiple formats: comma-separated, space-separated, or newline-separated
 const ALLOWED_USERS_RAW = process.env.ALLOWED_USERS || '';
+
+// More robust parsing: handle commas, newlines, spaces, and trailing commas
 const ALLOWED_USERS = ALLOWED_USERS_RAW
     ? ALLOWED_USERS_RAW
         .split(/[,\n\r]+/)  // Split by comma, newline, or carriage return
-        .map(email => email.trim().toLowerCase())
+        .map(email => email.trim())  // Trim whitespace
         .filter(email => email.length > 0 && email.includes('@'))  // Remove empty strings and invalid emails
+        .map(email => email.toLowerCase())  // Convert to lowercase
     : [];
 
-// Debug logging
+// Debug logging with detailed information
 console.log('🔐 Whitelist configuration:');
 console.log('   ALLOWED_USERS env (raw):', JSON.stringify(ALLOWED_USERS_RAW));
 console.log('   ALLOWED_USERS env (length):', ALLOWED_USERS_RAW.length);
+console.log('   ALLOWED_USERS env (char codes):', ALLOWED_USERS_RAW.split('').map(c => c.charCodeAt(0)).join(','));
 console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
 if (ALLOWED_USERS.length > 0) {
@@ -34,6 +38,8 @@ if (ALLOWED_USERS.length > 0) {
     });
 } else {
     console.log('   ⚠️  WARNING: Whitelist is empty!');
+    console.log('   💡 Check that ALLOWED_USERS is set in Service Variables (not Shared Variables)');
+    console.log('   💡 Format: ALLOWED_USERS=email1@domain.com,email2@domain.com');
 }
 
 // Session configuration
