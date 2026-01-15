@@ -194,17 +194,27 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Protected routes - serve static files
-app.use('/schedule.html', isAuthenticated, isWhitelisted, express.static(__dirname));
-app.use('/generate_schedule.js', isAuthenticated, isWhitelisted, express.static(__dirname));
-app.use('/README.md', isAuthenticated, isWhitelisted, express.static(__dirname));
-app.use('/SCHEDULE_RULES.md', isAuthenticated, isWhitelisted, express.static(__dirname));
-app.use('/SUMMARY.md', isAuthenticated, isWhitelisted, express.static(__dirname));
-
+// Protected routes - serve static files with authentication
 // Serve schedule.html as main page when authenticated
 app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
     res.sendFile(__dirname + '/schedule.html');
 });
+
+// Protect all other static files (HTML, JS, MD)
+app.get('/*.html', isAuthenticated, isWhitelisted, (req, res, next) => {
+    express.static(__dirname)(req, res, next);
+});
+
+app.get('/*.js', isAuthenticated, isWhitelisted, (req, res, next) => {
+    express.static(__dirname)(req, res, next);
+});
+
+app.get('/*.md', isAuthenticated, isWhitelisted, (req, res, next) => {
+    express.static(__dirname)(req, res, next);
+});
+
+// Serve other static files (CSS, images, etc.) - no protection needed
+app.use(express.static(__dirname));
 
 // User info endpoint
 app.get('/api/user', isAuthenticated, isWhitelisted, (req, res) => {
