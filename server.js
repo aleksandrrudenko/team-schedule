@@ -24,6 +24,15 @@ app.use(session({
     }
 }));
 
+// Check required environment variables
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error('❌ ERROR: Missing required environment variables!');
+    console.error('   Required: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET');
+    console.error('   Please set these in Railway dashboard: Variables tab');
+    console.error('   See README_AUTH.md for setup instructions');
+    process.exit(1);
+}
+
 // Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
