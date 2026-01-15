@@ -8,6 +8,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for Railway (important for cookies in production)
+app.set('trust proxy', 1);
+
 // Whitelist of allowed users (Google email addresses)
 // Support multiple formats: comma-separated, space-separated, or newline-separated
 const ALLOWED_USERS = process.env.ALLOWED_USERS 
@@ -27,10 +30,10 @@ console.log('   Whitelist emails:', ALLOWED_USERS.map(e => `"${e}"`).join(', '))
 // Session configuration
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
-    resave: true,  // Changed to true for Railway
-    saveUninitialized: true,  // Changed to true for Railway
+    resave: false,  // Changed back to false - resave only if session was modified
+    saveUninitialized: false,  // Changed back to false - don't save empty sessions
     cookie: {
-        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+        secure: 'auto',  // Use 'auto' to let Express detect HTTPS
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax'  // Added for better cookie handling
