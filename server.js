@@ -58,7 +58,7 @@ if (ALLOWED_USERS.length > 0) {
         console.log(`      [${index + 1}] "${email}"`);
     });
 } else {
-    console.log('   ⚠️  WARNING: Whitemist is empty!');
+    console.log('   ⚝  WARNING: Whitelist is empty!');
     console.log('   💡 Check that ALLOWED_USER_1, ALLOWED_USER_2, etc. are set in Service Variables');
     console.log('   💡 OR set ALLOWED_USERS=email1@domain.com,email2@domain.com');
 }
