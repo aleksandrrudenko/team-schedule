@@ -114,11 +114,25 @@ function isAuthenticated(req, res, next) {
 // Middleware to check whitelist (additional check)
 function isWhitelisted(req, res, next) {
     if (!req.user) {
+        console.log('⚠️  isWhitelisted: No user in session');
         return res.redirect('/auth/google');
     }
 
     const userEmail = req.user.email;
-    if (ALLOWED_USERS.length > 0 && !ALLOWED_USERS.includes(userEmail)) {
+    const userEmailLower = userEmail.toLowerCase();
+    
+    console.log('🔍 isWhitelisted check:');
+    console.log('   User email:', userEmail);
+    console.log('   User email (lowercase):', userEmailLower);
+    console.log('   Whitelist:', ALLOWED_USERS);
+    console.log('   Check (exact):', ALLOWED_USERS.includes(userEmail));
+    console.log('   Check (lowercase):', ALLOWED_USERS.includes(userEmailLower));
+    
+    // Check both exact match and lowercase match
+    const isAllowed = ALLOWED_USERS.includes(userEmail) || ALLOWED_USERS.includes(userEmailLower);
+    
+    if (ALLOWED_USERS.length > 0 && !isAllowed) {
+        console.log(`❌ isWhitelisted: Access denied for ${userEmail}`);
         req.logout((err) => {
             if (err) console.error('Logout error:', err);
         });
