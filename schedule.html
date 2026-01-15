@@ -1293,7 +1293,7 @@
                     // Update last saved info
                     if (data.savedBy || data.savedAt) {
                         showLastSavedInfo();
-                        updateLastSavedInfo(data.savedBy, data.savedAt);
+                        updateLastSavedInfo(data.savedBy || data.savedByName, data.savedAt);
                     }
                         
                         // Refresh display
