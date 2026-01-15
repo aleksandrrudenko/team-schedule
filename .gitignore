@@ -27,3 +27,9 @@ package-lock.json
 
 # Saved schedule data
 saved-schedule.json
+
+# Documentation files (except core ones)
+*.md
+!README.md
+!SUMMARY.md
+!SCHEDULE_RULES.md
