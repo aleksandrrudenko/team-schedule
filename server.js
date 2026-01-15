@@ -13,19 +13,28 @@ app.set('trust proxy', 1);
 
 // Whitelist of allowed users (Google email addresses)
 // Support multiple formats: comma-separated, space-separated, or newline-separated
-const ALLOWED_USERS = process.env.ALLOWED_USERS 
-    ? process.env.ALLOWED_USERS
+const ALLOWED_USERS_RAW = process.env.ALLOWED_USERS || '';
+const ALLOWED_USERS = ALLOWED_USERS_RAW
+    ? ALLOWED_USERS_RAW
         .split(/[,\n\r]+/)  // Split by comma, newline, or carriage return
         .map(email => email.trim().toLowerCase())
-        .filter(email => email.length > 0)  // Remove empty strings
+        .filter(email => email.length > 0 && email.includes('@'))  // Remove empty strings and invalid emails
     : [];
 
 // Debug logging
 console.log('🔐 Whitelist configuration:');
-console.log('   ALLOWED_USERS env (raw):', JSON.stringify(process.env.ALLOWED_USERS));
+console.log('   ALLOWED_USERS env (raw):', JSON.stringify(ALLOWED_USERS_RAW));
+console.log('   ALLOWED_USERS env (length):', ALLOWED_USERS_RAW.length);
 console.log('   Parsed whitelist:', ALLOWED_USERS);
 console.log('   Whitelist count:', ALLOWED_USERS.length);
-console.log('   Whitelist emails:', ALLOWED_USERS.map(e => `"${e}"`).join(', '));
+if (ALLOWED_USERS.length > 0) {
+    console.log('   Whitelist emails:');
+    ALLOWED_USERS.forEach((email, index) => {
+        console.log(`      [${index + 1}] "${email}"`);
+    });
+} else {
+    console.log('   ⚠️  WARNING: Whitelist is empty!');
+}
 
 // Session configuration
 app.use(session({
