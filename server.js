@@ -328,6 +328,47 @@ app.get('/api/user', isAuthenticated, isWhitelisted, (req, res) => {
     });
 });
 
+// Save schedule endpoint
+app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), (req, res) => {
+    try {
+        const fs = require('fs');
+        const scheduleData = {
+            ...req.body,
+            savedBy: req.user.email,
+            savedAt: new Date().toISOString()
+        };
+        
+        const filePath = path.join(__dirname, 'saved-schedule.json');
+        fs.writeFileSync(filePath, JSON.stringify(scheduleData, null, 2));
+        
+        console.log(`✅ Schedule saved by ${req.user.email}`);
+        res.json({ success: true, message: 'Schedule saved successfully' });
+    } catch (error) {
+        console.error('❌ Error saving schedule:', error);
+        res.status(500).json({ error: 'Failed to save schedule', details: error.message });
+    }
+});
+
+// Load schedule endpoint
+app.get('/api/load-schedule', isAuthenticated, isWhitelisted, (req, res) => {
+    try {
+        const fs = require('fs');
+        const filePath = path.join(__dirname, 'saved-schedule.json');
+        
+        if (fs.existsSync(filePath)) {
+            const data = fs.readFileSync(filePath, 'utf8');
+            const scheduleData = JSON.parse(data);
+            console.log(`✅ Schedule loaded (saved by ${scheduleData.savedBy || 'unknown'})`);
+            res.json(scheduleData);
+        } else {
+            res.status(404).json({ error: 'No saved schedule found' });
+        }
+    } catch (error) {
+        console.error('❌ Error loading schedule:', error);
+        res.status(500).json({ error: 'Failed to load schedule', details: error.message });
+    }
+});
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
