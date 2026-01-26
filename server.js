@@ -3,10 +3,67 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
+const fs = require('fs');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// PostgreSQL connection (for Railway or other PostgreSQL providers)
+let pool = null;
+let useDatabase = false;
+
+if (process.env.DATABASE_URL) {
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    useDatabase = true;
+    console.log('🗄️  PostgreSQL database configured');
+} else {
+    console.log('📁 Using local file storage (no DATABASE_URL set)');
+}
+
+// Initialize database table
+async function initDatabase() {
+    if (!useDatabase) return;
+    
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS schedule_data (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL,
+                saved_by VARCHAR(255),
+                saved_by_name VARCHAR(255),
+                saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ Database table initialized');
+        
+        // Migrate existing file data to database if file exists but no data in DB
+        const filePath = path.join(__dirname, 'saved-schedule.json');
+        if (fs.existsSync(filePath)) {
+            const result = await pool.query('SELECT COUNT(*) FROM schedule_data');
+            if (parseInt(result.rows[0].count) === 0) {
+                console.log('📦 Migrating existing file data to database...');
+                const fileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                await pool.query(
+                    'INSERT INTO schedule_data (data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4)',
+                    [fileData, fileData.savedBy || 'migration', fileData.savedByName || 'Migration', fileData.savedAt || new Date().toISOString()]
+                );
+                console.log('✅ File data migrated to database');
+            }
+        }
+    } catch (error) {
+        console.error('❌ Database initialization error:', error.message);
+        console.log('⚠️  Falling back to file storage');
+        useDatabase = false;
+    }
+}
+
+// Initialize database on startup
+initDatabase();
 
 // Trust proxy for Railway (important for cookies in production)
 app.set('trust proxy', 1);
@@ -321,7 +378,6 @@ app.get('/schedule.html', isAuthenticated, isWhitelisted, (req, res) => {
     console.log('   __dirname:', __dirname);
     
     // Check if file exists
-    const fs = require('fs');
     if (!fs.existsSync(filePath)) {
         console.error('❌ schedule.html not found at:', filePath);
         return res.status(404).send('Schedule page not found');
@@ -365,9 +421,8 @@ app.get('/api/user', isAuthenticated, isWhitelisted, (req, res) => {
 });
 
 // Save schedule endpoint
-app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), (req, res) => {
+app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), async (req, res) => {
     try {
-        const fs = require('fs');
         const scheduleData = {
             ...req.body,
             savedBy: req.user.email,
@@ -375,16 +430,29 @@ app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), (
             savedAt: new Date().toISOString()
         };
         
-        const filePath = path.join(__dirname, 'saved-schedule.json');
-        fs.writeFileSync(filePath, JSON.stringify(scheduleData, null, 2));
+        if (useDatabase) {
+            // Save to PostgreSQL database
+            // Delete old data and insert new (keep only latest schedule)
+            await pool.query('DELETE FROM schedule_data');
+            await pool.query(
+                'INSERT INTO schedule_data (data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4)',
+                [scheduleData, scheduleData.savedBy, scheduleData.savedByName, scheduleData.savedAt]
+            );
+            console.log(`✅ Schedule saved to DATABASE by ${req.user.email} (${req.user.name || 'unknown'})`);
+        } else {
+            // Fallback to file storage
+            const filePath = path.join(__dirname, 'saved-schedule.json');
+            fs.writeFileSync(filePath, JSON.stringify(scheduleData, null, 2));
+            console.log(`✅ Schedule saved to FILE by ${req.user.email} (${req.user.name || 'unknown'})`);
+        }
         
-        console.log(`✅ Schedule saved by ${req.user.email} (${req.user.name || 'unknown'})`);
         res.json({ 
             success: true, 
             message: 'Schedule saved successfully',
             savedBy: scheduleData.savedBy,
             savedByName: scheduleData.savedByName,
-            savedAt: scheduleData.savedAt
+            savedAt: scheduleData.savedAt,
+            storage: useDatabase ? 'database' : 'file'
         });
     } catch (error) {
         console.error('❌ Error saving schedule:', error);
@@ -393,18 +461,37 @@ app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), (
 });
 
 // Load schedule endpoint
-app.get('/api/load-schedule', isAuthenticated, isWhitelisted, (req, res) => {
+app.get('/api/load-schedule', isAuthenticated, isWhitelisted, async (req, res) => {
     try {
-        const fs = require('fs');
-        const filePath = path.join(__dirname, 'saved-schedule.json');
-        
-        if (fs.existsSync(filePath)) {
-            const data = fs.readFileSync(filePath, 'utf8');
-            const scheduleData = JSON.parse(data);
-            console.log(`✅ Schedule loaded (saved by ${scheduleData.savedBy || 'unknown'})`);
-            res.json(scheduleData);
+        if (useDatabase) {
+            // Load from PostgreSQL database
+            const result = await pool.query('SELECT data, saved_by, saved_by_name, saved_at FROM schedule_data ORDER BY saved_at DESC LIMIT 1');
+            
+            if (result.rows.length > 0) {
+                const row = result.rows[0];
+                const scheduleData = {
+                    ...row.data,
+                    savedBy: row.saved_by,
+                    savedByName: row.saved_by_name,
+                    savedAt: row.saved_at
+                };
+                console.log(`✅ Schedule loaded from DATABASE (saved by ${scheduleData.savedBy || 'unknown'})`);
+                res.json(scheduleData);
+            } else {
+                res.status(404).json({ error: 'No saved schedule found' });
+            }
         } else {
-            res.status(404).json({ error: 'No saved schedule found' });
+            // Fallback to file storage
+            const filePath = path.join(__dirname, 'saved-schedule.json');
+            
+            if (fs.existsSync(filePath)) {
+                const data = fs.readFileSync(filePath, 'utf8');
+                const scheduleData = JSON.parse(data);
+                console.log(`✅ Schedule loaded from FILE (saved by ${scheduleData.savedBy || 'unknown'})`);
+                res.json(scheduleData);
+            } else {
+                res.status(404).json({ error: 'No saved schedule found' });
+            }
         }
     } catch (error) {
         console.error('❌ Error loading schedule:', error);
@@ -414,7 +501,12 @@ app.get('/api/load-schedule', isAuthenticated, isWhitelisted, (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        storage: useDatabase ? 'postgresql' : 'file',
+        databaseConfigured: !!process.env.DATABASE_URL
+    });
 });
 
 // Start server
