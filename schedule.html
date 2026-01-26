@@ -141,7 +141,108 @@
             position: sticky;
             left: 0;
             z-index: 5;
-            min-width: 150px;
+            min-width: 180px;
+        }
+
+        .employee-name-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .delete-employee-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 22px;
+            height: 22px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+
+        .delete-employee-btn:hover {
+            opacity: 1;
+            background: #c0392b;
+        }
+
+        .add-employee-btn {
+            background: #27ae60;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        .add-employee-btn:hover {
+            background: #219a52;
+        }
+
+        .add-employee-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .add-employee-modal.show {
+            display: flex;
+        }
+
+        .add-employee-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .add-employee-content h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .add-employee-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
         }
 
         .timezone {
@@ -429,6 +530,7 @@
             <button onclick="generateSchedule()">Update Schedule</button>
             <button onclick="exportToCSV()">Export to CSV</button>
             <button onclick="saveSchedule()" style="background: #27ae60;">💾 Save Schedule</button>
+            <button onclick="showAddEmployeeModal()" class="add-employee-btn">➕ Add Employee</button>
         </div>
 
         <div class="legend">
@@ -459,8 +561,8 @@
     </div>
 
     <script>
-        // Team configuration
-        const team = {
+        // Team configuration - now dynamic (can be modified)
+        let team = {
             brazil: [
                 { name: 'Brazil 1', timezone: 'America/Sao_Paulo', offset: -3, workStart: 9, workEnd: 18 },
                 { name: 'Brazil 2', timezone: 'America/Sao_Paulo', offset: -3, workStart: 9, workEnd: 18 }
@@ -480,7 +582,23 @@
             ]
         };
 
-        const allEmployees = [...team.brazil, ...team.australia, ...team.europe];
+        // Default team configuration (for reset)
+        const defaultTeam = JSON.parse(JSON.stringify(team));
+
+        // Function to get all employees (recalculated each time)
+        function getAllEmployees() {
+            return [...team.brazil, ...team.australia, ...team.europe];
+        }
+
+        // For backward compatibility
+        let allEmployees = getAllEmployees();
+
+        // Region configurations for adding employees
+        const regionConfigs = {
+            brazil: { timezone: 'America/Sao_Paulo', offset: -3 },
+            australia: { timezone: 'Australia/Sydney', offset: 10 },
+            europe: { timezone: 'Europe/Berlin', offset: 1 }
+        };
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                            'July', 'August', 'September', 'October', 'November', 'December'];
         const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -1019,6 +1137,9 @@
 
         // Schedule generation
         function generateSchedule() {
+            // Update allEmployees to reflect current team configuration
+            allEmployees = getAllEmployees();
+            
             const month = parseInt(document.getElementById('monthSelect').value);
             const year = parseInt(document.getElementById('yearSelect').value);
             const days = getDaysInMonth(month, year);
@@ -1090,11 +1211,19 @@
             // Rows for each employee
             allEmployees.forEach(employee => {
                 const row = document.createElement('tr');
+                row.dataset.employeeName = employee.name;
                 
-                // Employee name
+                // Employee name with delete button
                 const nameCell = document.createElement('td');
                 nameCell.className = 'employee-name';
-                nameCell.innerHTML = `${employee.name}<br><span class="timezone">${employee.timezone}</span>`;
+                nameCell.innerHTML = `
+                    <div class="employee-name-container">
+                        <div>
+                            ${employee.name}<br><span class="timezone">${employee.timezone}</span>
+                        </div>
+                        <button class="delete-employee-btn" onclick="deleteEmployee('${employee.name}')" title="Remove employee">×</button>
+                    </div>
+                `;
                 row.appendChild(nameCell);
 
                 // Cells for each day
@@ -1241,6 +1370,7 @@
                     onCallSchedule: globalOnCallSchedule,
                     shiftSchedule: globalShiftSchedule,
                     days: globalDays,
+                    team: team, // Save team configuration
                     month: parseInt(document.getElementById('monthSelect').value),
                     year: parseInt(document.getElementById('yearSelect').value),
                     timestamp: new Date().toISOString()
@@ -1323,13 +1453,20 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (data.onCallSchedule && data.shiftSchedule && data.days) {
+                        // Load saved team configuration if available
+                        if (data.team) {
+                            team = data.team;
+                            allEmployees = getAllEmployees();
+                            console.log('✅ Loaded saved team configuration');
+                        }
+                        
                         // Load saved schedule
                         globalOnCallSchedule = data.onCallSchedule;
                         globalShiftSchedule = data.shiftSchedule;
                         globalDays = data.days;
                         
                         // Set month and year selectors
-                        if (data.month) {
+                        if (data.month !== undefined) {
                             document.getElementById('monthSelect').value = data.month;
                         }
                         if (data.year) {
@@ -1710,6 +1847,171 @@
                 // Not running on server or not authenticated
                 document.getElementById('userInfo').style.display = 'none';
             }
+        }
+
+        // Delete employee
+        function deleteEmployee(employeeName) {
+            if (!confirm(`Are you sure you want to remove "${employeeName}" from the schedule?`)) {
+                return;
+            }
+
+            // Find which region the employee belongs to
+            let found = false;
+            for (const region of ['brazil', 'australia', 'europe']) {
+                const index = team[region].findIndex(e => e.name === employeeName);
+                if (index !== -1) {
+                    team[region].splice(index, 1);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                alert('Employee not found');
+                return;
+            }
+
+            // Update allEmployees
+            allEmployees = getAllEmployees();
+
+            // Remove from schedule data if exists
+            if (globalOnCallSchedule && globalOnCallSchedule[employeeName]) {
+                delete globalOnCallSchedule[employeeName];
+            }
+            if (globalShiftSchedule && globalShiftSchedule[employeeName]) {
+                delete globalShiftSchedule[employeeName];
+            }
+
+            // Refresh the schedule display
+            if (globalOnCallSchedule && globalShiftSchedule && globalDays) {
+                const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
+                displayStats(stats);
+                createScheduleTable();
+            }
+
+            console.log(`✅ Employee "${employeeName}" removed`);
+        }
+
+        // Show add employee modal
+        function showAddEmployeeModal() {
+            let modal = document.getElementById('addEmployeeModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'addEmployeeModal';
+                modal.className = 'add-employee-modal';
+                document.body.appendChild(modal);
+            }
+
+            modal.innerHTML = `
+                <div class="add-employee-content">
+                    <h3>➕ Add New Employee</h3>
+                    <div class="form-group">
+                        <label for="newEmployeeName">Employee Name:</label>
+                        <input type="text" id="newEmployeeName" placeholder="e.g., Europe 8 or John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label for="newEmployeeRegion">Region:</label>
+                        <select id="newEmployeeRegion">
+                            <option value="europe">Europe (Berlin, UTC+1)</option>
+                            <option value="brazil">Brazil (São Paulo, UTC-3)</option>
+                            <option value="australia">Australia (Sydney, UTC+10)</option>
+                        </select>
+                    </div>
+                    <div class="add-employee-actions">
+                        <button class="cancel" onclick="closeAddEmployeeModal()">Cancel</button>
+                        <button onclick="addEmployee()">Add Employee</button>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.add('show');
+
+            // Close on background click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeAddEmployeeModal();
+                }
+            });
+
+            // Focus on name input
+            setTimeout(() => {
+                document.getElementById('newEmployeeName').focus();
+            }, 100);
+        }
+
+        // Close add employee modal
+        function closeAddEmployeeModal() {
+            const modal = document.getElementById('addEmployeeModal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        // Add new employee
+        function addEmployee() {
+            const nameInput = document.getElementById('newEmployeeName');
+            const regionSelect = document.getElementById('newEmployeeRegion');
+
+            const name = nameInput.value.trim();
+            const region = regionSelect.value;
+
+            if (!name) {
+                alert('Please enter an employee name');
+                nameInput.focus();
+                return;
+            }
+
+            // Check if name already exists
+            const existingEmployee = getAllEmployees().find(e => e.name.toLowerCase() === name.toLowerCase());
+            if (existingEmployee) {
+                alert(`An employee with name "${name}" already exists`);
+                nameInput.focus();
+                return;
+            }
+
+            // Get region config
+            const config = regionConfigs[region];
+            if (!config) {
+                alert('Invalid region selected');
+                return;
+            }
+
+            // Create new employee
+            const newEmployee = {
+                name: name,
+                timezone: config.timezone,
+                offset: config.offset,
+                workStart: 9,
+                workEnd: 18
+            };
+
+            // Add to team
+            team[region].push(newEmployee);
+
+            // Update allEmployees
+            allEmployees = getAllEmployees();
+
+            // Initialize schedule data for new employee if schedule exists
+            if (globalOnCallSchedule) {
+                globalOnCallSchedule[name] = { count: 0, days: [], shifts: [] };
+            }
+            if (globalShiftSchedule && globalDays) {
+                globalShiftSchedule[name] = {};
+                globalDays.forEach(dayInfo => {
+                    globalShiftSchedule[name][dayInfo.day] = null;
+                });
+            }
+
+            closeAddEmployeeModal();
+
+            // Refresh the schedule display
+            if (globalOnCallSchedule && globalShiftSchedule && globalDays) {
+                const stats = calculateStats(globalOnCallSchedule, globalDays, globalShiftSchedule);
+                displayStats(stats);
+                createScheduleTable();
+            }
+
+            console.log(`✅ Employee "${name}" added to ${region}`);
         }
 
         // Run on load - initialize UI first, then load saved schedule or generate new one
