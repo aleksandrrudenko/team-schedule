@@ -554,7 +554,8 @@
                 <label for="yearSelect">Year:</label>
                 <select id="yearSelect"></select>
             </div>
-            <button onclick="generateSchedule()">Update Schedule</button>
+            <button onclick="generateSchedule()">Load/Update Schedule</button>
+            <button onclick="generateNewSchedule()" style="background: #e67e22;">🔄 Reset to Default</button>
             <button onclick="exportToCSV()">Export to CSV</button>
             <button onclick="saveSchedule()" style="background: #27ae60;">💾 Save Schedule</button>
             <button onclick="showAddEmployeeModal()" class="add-employee-btn">➕ Add Employee</button>
@@ -1163,7 +1164,26 @@
         let globalDays = null;
 
         // Schedule generation
-        function generateSchedule() {
+        // Load or generate schedule for selected month/year
+        async function generateSchedule() {
+            const month = parseInt(document.getElementById('monthSelect').value);
+            const year = parseInt(document.getElementById('yearSelect').value);
+            
+            // First, try to load saved schedule for this month/year
+            const loaded = await loadSavedSchedule(month, year);
+            
+            if (loaded) {
+                console.log(`📂 Loaded existing schedule for ${month + 1}/${year}`);
+                return; // Already displayed by loadSavedSchedule
+            }
+            
+            // No saved schedule found - generate new one
+            console.log(`🆕 Generating new schedule for ${month + 1}/${year}`);
+            generateNewSchedule();
+        }
+        
+        // Generate a completely new schedule (without checking for saved data)
+        function generateNewSchedule() {
             // Update allEmployees to reflect current team configuration
             allEmployees = getAllEmployees();
             
@@ -1476,10 +1496,16 @@
             }
         }
 
-        // Load saved schedule from server
-        async function loadSavedSchedule() {
+        // Load saved schedule from server for specific month/year
+        async function loadSavedSchedule(month = null, year = null) {
             try {
-                const response = await fetch('/api/load-schedule');
+                // Build URL with month/year params if provided
+                let url = '/api/load-schedule';
+                if (month !== null && year !== null) {
+                    url += `?month=${month}&year=${year}`;
+                }
+                
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.onCallSchedule && data.shiftSchedule && data.days) {
@@ -1495,11 +1521,11 @@
                         globalShiftSchedule = data.shiftSchedule;
                         globalDays = data.days;
                         
-                        // Set month and year selectors
-                        if (data.month !== undefined) {
+                        // Set month and year selectors (only if not explicitly loading specific month)
+                        if (month === null && data.month !== undefined) {
                             document.getElementById('monthSelect').value = data.month;
                         }
-                        if (data.year) {
+                        if (year === null && data.year) {
                             document.getElementById('yearSelect').value = data.year;
                         }
                         
@@ -1507,6 +1533,12 @@
                         if (data.savedBy || data.savedAt) {
                             showLastSavedInfo();
                             updateLastSavedInfo(data.savedBy || data.savedByName, data.savedAt);
+                        } else {
+                            // Hide if no saved info
+                            const lastSavedInfoEl = document.getElementById('lastSavedInfo');
+                            if (lastSavedInfoEl) {
+                                lastSavedInfoEl.style.display = 'none';
+                            }
                         }
                         
                         // Refresh display
@@ -1516,15 +1548,16 @@
                         // Create/refresh table with loaded data
                         createScheduleTable();
                         
-                        console.log('✅ Loaded saved schedule');
+                        console.log(`✅ Loaded saved schedule for ${(data.month !== undefined ? data.month + 1 : '?')}/${data.year || '?'}`);
                         return true; // Indicate that saved schedule was loaded
                     }
                 } else {
-                    // No saved schedule - hide last saved info
+                    // No saved schedule for this month - hide last saved info
                     const lastSavedInfoEl = document.getElementById('lastSavedInfo');
                     if (lastSavedInfoEl) {
                         lastSavedInfoEl.style.display = 'none';
                     }
+                    return false;
                 }
             } catch (error) {
                 console.log('No saved schedule found or error loading:', error);

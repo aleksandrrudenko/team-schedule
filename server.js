@@ -30,16 +30,92 @@ async function initDatabase() {
     if (!useDatabase) return;
     
     try {
+        // Create table with month/year columns for per-month storage
         await pool.query(`
             CREATE TABLE IF NOT EXISTS schedule_data (
                 id SERIAL PRIMARY KEY,
+                month INTEGER,
+                year INTEGER,
                 data JSONB NOT NULL,
                 saved_by VARCHAR(255),
                 saved_by_name VARCHAR(255),
                 saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        console.log('✅ Database table initialized');
+        
+        // Add month/year columns if they don't exist (for existing tables)
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='schedule_data' AND column_name='month') THEN
+                    ALTER TABLE schedule_data ADD COLUMN month INTEGER;
+                    ALTER TABLE schedule_data ADD COLUMN year INTEGER;
+                END IF;
+            END $$;
+        `);
+        
+        // Log current state before migration for safety
+        const beforeMigration = await pool.query('SELECT id, month, year, saved_at, saved_by FROM schedule_data ORDER BY id');
+        console.log(`📊 Current records in DB: ${beforeMigration.rows.length}`);
+        beforeMigration.rows.forEach(row => {
+            console.log(`   - ID ${row.id}: month=${row.month}, year=${row.year}, saved_at=${row.saved_at}, by=${row.saved_by}`);
+        });
+        
+        // Migrate existing records that have NULL month/year - extract from data JSONB
+        // This UPDATE is safe - it only fills in NULL values, doesn't delete anything
+        const updateResult = await pool.query(`
+            UPDATE schedule_data 
+            SET 
+                month = COALESCE((data->>'month')::INTEGER, EXTRACT(MONTH FROM saved_at)::INTEGER - 1),
+                year = COALESCE((data->>'year')::INTEGER, EXTRACT(YEAR FROM saved_at)::INTEGER)
+            WHERE month IS NULL OR year IS NULL
+            RETURNING id, month, year
+        `);
+        
+        if (updateResult.rows.length > 0) {
+            console.log(`📝 Migrated ${updateResult.rows.length} record(s) with month/year:`);
+            updateResult.rows.forEach(row => {
+                console.log(`   - ID ${row.id}: month=${row.month}, year=${row.year}`);
+            });
+        }
+        
+        // Check for duplicates BEFORE adding constraint (safety check)
+        const duplicateCheck = await pool.query(`
+            SELECT month, year, COUNT(*) as cnt 
+            FROM schedule_data 
+            WHERE month IS NOT NULL AND year IS NOT NULL
+            GROUP BY month, year 
+            HAVING COUNT(*) > 1
+        `);
+        
+        if (duplicateCheck.rows.length > 0) {
+            console.log('⚠️  WARNING: Found duplicate month/year combinations:');
+            duplicateCheck.rows.forEach(row => {
+                console.log(`   - ${row.month + 1}/${row.year}: ${row.cnt} records`);
+            });
+            console.log('⚠️  Skipping unique constraint to preserve data. App will still work correctly.');
+        } else {
+            // Safe to add unique constraint - no duplicates exist
+            try {
+                await pool.query(`
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint 
+                            WHERE conname = 'schedule_data_month_year_key'
+                        ) THEN
+                            ALTER TABLE schedule_data ADD CONSTRAINT schedule_data_month_year_key UNIQUE (month, year);
+                        END IF;
+                    END $$;
+                `);
+                console.log('✅ Unique constraint on (month, year) added/verified');
+            } catch (constraintError) {
+                console.log('⚠️  Could not add unique constraint:', constraintError.message);
+                console.log('   App will still work correctly without it.');
+            }
+        }
+        
+        console.log('✅ Database table initialized (with month/year support)');
         
         // Migrate existing file data to database if file exists but no data in DB
         const filePath = path.join(__dirname, 'saved-schedule.json');
@@ -48,9 +124,11 @@ async function initDatabase() {
             if (parseInt(result.rows[0].count) === 0) {
                 console.log('📦 Migrating existing file data to database...');
                 const fileData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const month = fileData.month !== undefined ? fileData.month : new Date().getMonth();
+                const year = fileData.year || new Date().getFullYear();
                 await pool.query(
-                    'INSERT INTO schedule_data (data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4)',
-                    [fileData, fileData.savedBy || 'migration', fileData.savedByName || 'Migration', fileData.savedAt || new Date().toISOString()]
+                    'INSERT INTO schedule_data (month, year, data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (month, year) DO NOTHING',
+                    [month, year, fileData, fileData.savedBy || 'migration', fileData.savedByName || 'Migration', fileData.savedAt || new Date().toISOString()]
                 );
                 console.log('✅ File data migrated to database');
             }
@@ -423,6 +501,13 @@ app.get('/api/user', isAuthenticated, isWhitelisted, (req, res) => {
 // Save schedule endpoint
 app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), async (req, res) => {
     try {
+        const month = req.body.month;
+        const year = req.body.year;
+        
+        if (month === undefined || year === undefined) {
+            return res.status(400).json({ error: 'Month and year are required' });
+        }
+        
         const scheduleData = {
             ...req.body,
             savedBy: req.user.email,
@@ -431,24 +516,48 @@ app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), a
         };
         
         if (useDatabase) {
-            // Save to PostgreSQL database
-            // Delete old data and insert new (keep only latest schedule)
-            await pool.query('DELETE FROM schedule_data');
-            await pool.query(
-                'INSERT INTO schedule_data (data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4)',
-                [scheduleData, scheduleData.savedBy, scheduleData.savedByName, scheduleData.savedAt]
-            );
-            console.log(`✅ Schedule saved to DATABASE by ${req.user.email} (${req.user.name || 'unknown'})`);
+            // Save to PostgreSQL database - UPSERT by month/year
+            // Using transaction to ensure atomicity
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                
+                // Delete existing record for this month/year (if any)
+                const deleteResult = await client.query(
+                    'DELETE FROM schedule_data WHERE month = $1 AND year = $2 RETURNING id',
+                    [month, year]
+                );
+                
+                if (deleteResult.rows.length > 0) {
+                    console.log(`🔄 Updating existing schedule for ${month + 1}/${year} (replaced record ID ${deleteResult.rows[0].id})`);
+                }
+                
+                // Insert new record
+                await client.query(
+                    'INSERT INTO schedule_data (month, year, data, saved_by, saved_by_name, saved_at) VALUES ($1, $2, $3, $4, $5, $6)',
+                    [month, year, scheduleData, scheduleData.savedBy, scheduleData.savedByName, scheduleData.savedAt]
+                );
+                
+                await client.query('COMMIT');
+                console.log(`✅ Schedule for ${month + 1}/${year} saved to DATABASE by ${req.user.email}`);
+            } catch (txError) {
+                await client.query('ROLLBACK');
+                throw txError;
+            } finally {
+                client.release();
+            }
         } else {
-            // Fallback to file storage
-            const filePath = path.join(__dirname, 'saved-schedule.json');
+            // Fallback to file storage (per month/year)
+            const filePath = path.join(__dirname, `saved-schedule-${year}-${month}.json`);
             fs.writeFileSync(filePath, JSON.stringify(scheduleData, null, 2));
-            console.log(`✅ Schedule saved to FILE by ${req.user.email} (${req.user.name || 'unknown'})`);
+            console.log(`✅ Schedule for ${month + 1}/${year} saved to FILE by ${req.user.email}`);
         }
         
         res.json({ 
             success: true, 
-            message: 'Schedule saved successfully',
+            message: `Schedule for ${month + 1}/${year} saved successfully`,
+            month: month,
+            year: year,
             savedBy: scheduleData.savedBy,
             savedByName: scheduleData.savedByName,
             savedAt: scheduleData.savedAt,
@@ -460,12 +569,28 @@ app.post('/api/save-schedule', isAuthenticated, isWhitelisted, express.json(), a
     }
 });
 
-// Load schedule endpoint
+// Load schedule endpoint - now supports month/year query params
 app.get('/api/load-schedule', isAuthenticated, isWhitelisted, async (req, res) => {
     try {
+        const month = req.query.month !== undefined ? parseInt(req.query.month) : null;
+        const year = req.query.year !== undefined ? parseInt(req.query.year) : null;
+        
         if (useDatabase) {
-            // Load from PostgreSQL database
-            const result = await pool.query('SELECT data, saved_by, saved_by_name, saved_at FROM schedule_data ORDER BY saved_at DESC LIMIT 1');
+            let result;
+            
+            if (month !== null && year !== null) {
+                // Load specific month/year
+                result = await pool.query(
+                    'SELECT data, saved_by, saved_by_name, saved_at, month, year FROM schedule_data WHERE month = $1 AND year = $2',
+                    [month, year]
+                );
+                console.log(`🔍 Looking for schedule: ${month + 1}/${year}`);
+            } else {
+                // Load most recent (backward compatibility)
+                result = await pool.query(
+                    'SELECT data, saved_by, saved_by_name, saved_at, month, year FROM schedule_data ORDER BY saved_at DESC LIMIT 1'
+                );
+            }
             
             if (result.rows.length > 0) {
                 const row = result.rows[0];
@@ -473,24 +598,31 @@ app.get('/api/load-schedule', isAuthenticated, isWhitelisted, async (req, res) =
                     ...row.data,
                     savedBy: row.saved_by,
                     savedByName: row.saved_by_name,
-                    savedAt: row.saved_at
+                    savedAt: row.saved_at,
+                    month: row.month,
+                    year: row.year
                 };
-                console.log(`✅ Schedule loaded from DATABASE (saved by ${scheduleData.savedBy || 'unknown'})`);
+                console.log(`✅ Schedule for ${(row.month !== null ? row.month + 1 : '?')}/${row.year || '?'} loaded from DATABASE`);
                 res.json(scheduleData);
             } else {
-                res.status(404).json({ error: 'No saved schedule found' });
+                res.status(404).json({ error: 'No saved schedule found for this month/year' });
             }
         } else {
             // Fallback to file storage
-            const filePath = path.join(__dirname, 'saved-schedule.json');
+            let filePath;
+            if (month !== null && year !== null) {
+                filePath = path.join(__dirname, `saved-schedule-${year}-${month}.json`);
+            } else {
+                filePath = path.join(__dirname, 'saved-schedule.json');
+            }
             
             if (fs.existsSync(filePath)) {
                 const data = fs.readFileSync(filePath, 'utf8');
                 const scheduleData = JSON.parse(data);
-                console.log(`✅ Schedule loaded from FILE (saved by ${scheduleData.savedBy || 'unknown'})`);
+                console.log(`✅ Schedule loaded from FILE`);
                 res.json(scheduleData);
             } else {
-                res.status(404).json({ error: 'No saved schedule found' });
+                res.status(404).json({ error: 'No saved schedule found for this month/year' });
             }
         }
     } catch (error) {
