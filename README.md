@@ -1,330 +1,146 @@
----
-title: Team Schedule System
-description: Visualization and management of work schedule for a distributed team with on-call rotation balancing
-version: 1.0.0
-last_updated: 2025-01-15
----
+# Team Schedule
 
-# Team Schedule System
+**Open-source scheduling system for distributed teams with 24/7 follow-the-sun coverage.**
 
-Visualization and management of work schedule for a distributed team with on-call rotation balancing, working hours, and days off.
+Built for teams that need to coordinate complex shift rotations across multiple timezones while preventing employee burnout through automatic workload balancing.
 
-## Table of Contents
+## Why This Exists
 
-- [Overview](#overview)
-- [Team Composition](#team-composition)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Authentication](#authentication)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Schedule Rules](#schedule-rules)
-- [Troubleshooting](#troubleshooting)
+Managing schedules for globally distributed teams is hard:
+- Different timezones mean different "work hours"
+- 24/7 coverage requires careful handoff planning
+- Overtime sneaks up on you without automatic tracking
+- Fair rotation is nearly impossible to do manually
 
-## Overview
+This tool solves these problems with an algorithm that automatically generates balanced schedules while respecting configurable working hour limits.
 
-The Team Schedule System is an automated scheduling tool designed to balance workload across a distributed team spanning three timezones. It ensures fair distribution of on-call duties and regular work shifts while maintaining strict working hour requirements (165-185 hours per month per employee).
+## Key Features
 
-### Key Capabilities
-
-- **Automated Schedule Generation**: Creates monthly schedules with balanced workload distribution
-- **Multi-Timezone Support**: Handles Brazil (UTC-3), Australia (UTC+10), and Europe (UTC+1) timezones
-- **On-Call Rotation**: Fair distribution of 24/7 on-call duties across three groups
-- **Workload Balancing**: Ensures all employees meet 165-185 hour monthly target (HARD RULE)
-- **Export Functionality**: CSV export for calendar integration
-
-## Team Composition
-
-The system manages schedules for **11 employees** across three regions:
-
-| Region | Employees | Timezone | UTC Offset | Notes |
-|--------|-----------|----------|------------|-------|
-| **Brazil** | 2 | America/Sao_Paulo | UTC-3 | - |
-| **Australia** | 2 | Australia/Sydney | UTC+10 | - |
-| **Europe** | 7 | Europe/Berlin | UTC+1 (CET) | Main load for partner requests |
-
-## Features
-
-### Core Features
-
-- ✅ **Interactive Schedule Visualization** - Web-based calendar with color-coded shifts
-- ✅ **8-Hour Shift System** - Three shifts per day providing 24/7 coverage
-- ✅ **Working Hours Enforcement** - Automatic enforcement of 165-185 hours/month (HARD RULE)
-- ✅ **Dual Time Display** - Shows both CET and local time for each shift
-- ✅ **On-Call Rotation** - Fair distribution with 1-hour overlaps for handover
-- ✅ **Statistics Dashboard** - Real-time workload statistics with progress indicators
-- ✅ **CSV Export** - Export schedules for calendar applications (Google Calendar, Outlook, etc.)
-
-### Advanced Features
-
-- **Parallel Work Assignment**: Regular work can be assigned alongside on-call duties
-- **Consecutive Day Limits**: For Europeans, maximum 5 consecutive work days and 2 consecutive days off (soft rule)
-- **Automatic Balancing**: Algorithm ensures minimum hours are met before optimizing for target
+| Feature | Description |
+|---------|-------------|
+| **Follow-the-Sun Coverage** | Seamless 24/7 coverage with automatic shift handoffs between timezone groups |
+| **Multi-Timezone Support** | Configure any number of timezone groups (default: Americas, APAC, EMEA) |
+| **Overtime Prevention** | Hard limits on monthly hours (default: 165-185h) with real-time tracking |
+| **On-Call Rotation** | Fair distribution of on-call duties with configurable overlap periods |
+| **Visual Dashboard** | Color-coded calendar view with per-employee statistics |
+| **Editable Cells** | Click any cell to override with custom shift assignment |
+| **Team Management** | Add, remove, and rename employees directly from the UI |
+| **Data Persistence** | PostgreSQL backend stores schedules per month (no data loss on redeploy) |
+| **CSV Export** | Export to Google Calendar, Outlook, or any calendar app |
 
 ## Quick Start
 
-### Prerequisites
+### Option 1: Run Locally
 
-- Node.js (v14 or higher)
-- Google Cloud Project with OAuth 2.0 credentials (for web authentication)
-- Modern web browser
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/aleksandrrudenko/team-schedule.git
-   cd team-schedule
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Configure authentication (see [Authentication Setup Guide](README_AUTH.md)):
-   ```bash
-   cp .env.example .env
-   # Edit .env with your Google OAuth credentials and allowed users
-   ```
-
-### First Run
-
-**Option 1: Web Server with Authentication (Recommended)**
 ```bash
-# Start the server
+git clone https://github.com/aleksandrrudenko/team-schedule.git
+cd team-schedule
+npm install
 npm start
-
-# Or for development with auto-reload
-npm run dev
-
-# Open http://localhost:3000 in your browser
-# You'll be prompted to sign in with Google
+# Open http://localhost:3000
 ```
 
-**Option 2: Standalone HTML (No Authentication)**
-```bash
-# Open schedule.html directly in your browser
-open schedule.html  # macOS
-# or double-click schedule.html
-```
+### Option 2: Deploy to Cloud
 
-**Option 3: Command Line CSV Generation**
-```bash
-# Generate schedule for current month
-node generate_schedule.js
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
 
-# Generate for specific month
-node generate_schedule.js 3 2024  # March 2024
-```
-
-## Usage
-
-### Interactive Web Visualization
-
-1. Open `schedule.html` in your browser
-2. Select the desired month and year from dropdowns
-3. Click **"Update Schedule"** to generate the schedule
-4. Review statistics and schedule visualization
-5. Use **"Export to CSV"** to save the schedule
-
-### Command Line CSV Generation
-
-Generate CSV files directly from the command line:
-
-```bash
-# Current month (default)
-node generate_schedule.js
-
-# Specific month and year
-node generate_schedule.js 3 2024   # March 2024
-node generate_schedule.js 12 2024 # December 2024
-```
-
-The generated CSV file will be named: `schedule_<Month>_<Year>.csv`
-
-### CSV Import to Calendar
-
-1. Export schedule using "Export to CSV" button or command line
-2. Open your calendar application (Google Calendar, Outlook, etc.)
-3. Import the CSV file
-4. Map columns as needed (most applications auto-detect)
-
-## Authentication
-
-The web application uses Google OAuth 2.0 for authentication with a whitelist-based access control system.
-
-### Features
-
-- **Google OAuth**: Secure authentication via Google accounts
-- **Whitelist Control**: Only pre-approved email addresses can access the system
-- **Session Management**: Users stay logged in for 24 hours
-- **Automatic Access Control**: Unauthorized users are automatically denied access
-
-### Setup
-
-See [README_AUTH.md](README_AUTH.md) for detailed authentication setup instructions.
-
-### Quick Setup
-
-1. Create Google OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/)
-2. Copy `.env.example` to `.env`
-3. Configure your credentials and whitelist:
-   ```env
-   GOOGLE_CLIENT_ID=your-client-id
-   GOOGLE_CLIENT_SECRET=your-client-secret
-   ALLOWED_USERS=user1@example.com,user2@example.com
-   ```
-4. Start the server: `npm start`
-
-### Managing Access
-
-To add or remove users, edit the `ALLOWED_USERS` variable in `.env`:
-
+Required environment variables:
 ```env
-ALLOWED_USERS=user1@example.com,user2@example.com,newuser@example.com
+GOOGLE_CLIENT_ID=your-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-oauth-secret
+SESSION_SECRET=random-32-char-string
+ALLOWED_USERS=user1@gmail.com,user2@gmail.com
+DATABASE_URL=postgres://...  # Optional, enables persistent storage
 ```
 
-Then restart the server.
+### Option 3: Static HTML (No Auth)
+
+Just open `schedule.html` in your browser for a standalone version without authentication.
+
+## How It Works
+
+### Shift Structure
+
+The system divides each day into three 8-hour shifts:
+
+| Shift | Time (CET) | Typical Coverage |
+|-------|------------|------------------|
+| Shift 1 | 00:00-08:00 | APAC team |
+| Shift 2 | 08:00-16:00 | EMEA team |
+| Shift 3 | 16:00-00:00 | Americas team |
+
+### On-Call Rotation
+
+On-call duties rotate between timezone groups with 1-hour overlaps for smooth handoffs:
+
+```
+APAC:     17:00 -------- 01:00 (CET)
+EMEA:     00:00 -------- 09:00 (CET)  
+Americas: 08:00 -------- 17:00 (CET)
+```
+
+### Workload Balancing
+
+The algorithm ensures:
+- **Hard limit**: 165-185 hours/month per employee
+- **Soft limit**: Max 5 consecutive work days (configurable)
+- **Soft limit**: Max 2 consecutive days off (configurable)
+- **Fair distribution**: On-call and regular shifts spread evenly
 
 ## Configuration
 
-### Modifying Team Composition
+### Adding/Removing Employees
 
-To add, remove, or modify employees, edit the `team` object in both files:
+Edit the `team` object in `schedule.html`:
 
-**Files to modify:**
-- `schedule.html` (around line ~350)
-- `generate_schedule.js` (around line ~12)
-
-**Example:**
 ```javascript
 const team = {
-    brazil: [
-        { name: 'Brazil 1', timezone: 'America/Sao_Paulo', offset: -3, workStart: 9, workEnd: 18 },
-        { name: 'Brazil 2', timezone: 'America/Sao_Paulo', offset: -3, workStart: 9, workEnd: 18 }
+    americas: [
+        { name: 'Alice', timezone: 'America/Sao_Paulo', offset: -3 },
+        { name: 'Bob', timezone: 'America/New_York', offset: -5 }
     ],
-    // ... other groups
+    apac: [
+        { name: 'Charlie', timezone: 'Australia/Sydney', offset: 10 }
+    ],
+    emea: [
+        { name: 'Diana', timezone: 'Europe/Berlin', offset: 1 },
+        { name: 'Eve', timezone: 'Europe/London', offset: 0 }
+    ]
 };
 ```
 
-### Adjusting Working Hours
+Or use the UI: click **"Add Employee"** button and fill in the details.
 
-The system enforces a **HARD RULE** of 165-185 hours per month. To modify:
+### Adjusting Hour Limits
 
-1. Edit `minTotalHours` and `maxTotalHours` constants in:
-   - `schedule.html` (function `distributeShifts`)
-   - `generate_schedule.js` (function `distributeShifts`)
+Find these constants in `schedule.html`:
 
-2. **Warning**: Changing these values may affect schedule quality and employee workload balance
-
-## Schedule Rules
-
-For detailed information about shift logic, on-call distribution, and working hours rules, see **[SCHEDULE_RULES.md](SCHEDULE_RULES.md)**.
-
-### Quick Reference
-
-- **Working Hours**: 165-185 hours/month per employee (HARD RULE)
-- **Shift Duration**: 8 hours per shift
-- **Shifts per Day**: 3 shifts (covering 24 hours)
-- **On-Call Duration**: 8-10 hours (varies by group)
-- **On-Call Overlap**: 1 hour for handover between groups
-
-## Color Legend
-
-The schedule visualization uses the following color coding:
-
-| Color | Meaning | Time (CET) |
-|-------|---------|------------|
-| 🔵 **Blue** | Shift 1 (Night) | 00:00-08:00 |
-| 🟡 **Yellow** | Shift 2 (Day) | 08:00-16:00 |
-| 🟣 **Pink** | Shift 3 (Evening) | 16:00-00:00 |
-| 🟠 **Orange** | On-call | Varies by group |
-| 🟢🟠 **Gradient** | Regular work + On-call (parallel) | - |
-| 🟣 **Purple** | Day off | - |
-
-## Statistics
-
-The system automatically calculates and displays:
-
-- **Shift Count**: Number of shifts per type (Shift 1/2/3) per employee
-- **Shift Hours**: Total regular work hours (shifts × 8 hours)
-- **On-Call Hours**: Total on-call hours (calculated by shift duration)
-- **Total Hours**: Combined on-call + regular work hours
-- **Progress Indicator**: 
-  - ✅ Within range (165-185h)
-  - ⚠️ Exceeded maximum (>185h)
-  - ❌ Below minimum (<165h)
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Employee has less than 165 hours**
-- **Cause**: Algorithm couldn't assign enough shifts
-- **Solution**: Check if there are enough available shifts. The system will prioritize employees below minimum in the next generation.
-
-**Issue: Employee has more than 185 hours**
-- **Cause**: Algorithm assigned too many shifts
-- **Solution**: The system automatically stops assigning shifts once maximum is reached. This should be rare.
-
-**Issue: CSV export not working**
-- **Cause**: Browser security restrictions
-- **Solution**: Use a modern browser (Chrome, Firefox, Safari, Edge). Ensure pop-ups are not blocked.
-
-**Issue: Schedule looks unbalanced**
-- **Cause**: Randomization in algorithm
-- **Solution**: Regenerate the schedule. The algorithm uses randomization for fairness, so results may vary slightly.
-
-### Getting Help
-
-For detailed algorithm information, see [SCHEDULE_RULES.md](SCHEDULE_RULES.md).
-
-## Examples
-
-### Generate Schedule for Next Month
-
-```bash
-# Get current month and year
-CURRENT_MONTH=$(date +%m)
-CURRENT_YEAR=$(date +%Y)
-
-# Calculate next month
-NEXT_MONTH=$((CURRENT_MONTH + 1))
-if [ $NEXT_MONTH -gt 12 ]; then
-    NEXT_MONTH=1
-    NEXT_YEAR=$((CURRENT_YEAR + 1))
-else
-    NEXT_YEAR=$CURRENT_YEAR
-fi
-
-# Generate schedule
-node generate_schedule.js $NEXT_MONTH $NEXT_YEAR
+```javascript
+const minTotalHours = 165;  // Minimum monthly hours
+const maxTotalHours = 185;  // Maximum monthly hours
 ```
 
-### Batch Generate Multiple Months
+## Tech Stack
 
-```bash
-# Generate schedules for Q1 2024
-for month in 1 2 3; do
-    node generate_schedule.js $month 2024
-done
-```
+- **Frontend**: Vanilla HTML/CSS/JavaScript (no framework dependencies)
+- **Backend**: Node.js + Express
+- **Auth**: Google OAuth 2.0 with whitelist
+- **Database**: PostgreSQL (optional, for persistence)
+- **Deployment**: Railway, Render, Vercel, AWS, or any Node.js host
 
-## Version History
+## Documentation
 
-- **v1.0.0** (2025-01-15)
-  - Initial release
-  - On-call rotation with 1-hour overlaps
-  - 165-185 hour enforcement (HARD RULE)
-  - Consecutive day limits for Europeans
-  - CSV export functionality
+- [Schedule Rules](SCHEDULE_RULES.md) - Detailed algorithm explanation
+- [AWS Deployment Guide](DEPLOYMENT_AWS.md) - Production deployment to AWS
 
 ## License
 
-Internal use only - Playson
+MIT License - use it, modify it, make it yours.
+
+## Contributing
+
+Pull requests welcome! This project was built to solve a real problem for a real team. If you have ideas for improvements, open an issue or submit a PR.
 
 ---
 
-**Last Updated**: January 15, 2025  
-**Maintained by**: DevOps Team
+**Built with coffee and timezone math.**
